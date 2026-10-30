@@ -7,7 +7,7 @@ This repo has a numerical Weyl–Heisenberg SIC fiducial for every d from 197 to
 - **No SIC found published before (95 dimensions):** every d in 197..300 except the nine below.
 - **SIC known before (9):** in papers, 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)) and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)); only in talks or surveys, 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21) and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl). Ours may lie in different orbits from those; we have not checked orbit equivalence.
 
-It also has one in d = 2208, a Fibonacci–Lucas dimension ([Grassl and Scott](https://arxiv.org/abs/1707.02944)). Grassl has reported a numerical Fibonacci–Lucas SIC there ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting his 2020 talk; [2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 12); we found no posted fiducial. In d = 2208 a Fibonacci–Lucas SIC's order-3 symmetry is of type F_a, not Zauner's (Grassl and Scott, Proposition III.5), and no SIC orbit has been seen with both types ([Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), Question 2), so ours is presumably in a different orbit from his. One of his type is in `fibonacci/` (below); we have not compared orbits.
+It also has two in d = 2208, a Fibonacci–Lucas dimension ([Grassl and Scott](https://arxiv.org/abs/1707.02944)). Grassl has reported a numerical Fibonacci–Lucas SIC there ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting his 2020 talk; [2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 12); we found no posted fiducial. In d = 2208 a Fibonacci–Lucas SIC's order-3 symmetry is of type F_a, not Zauner's (Grassl and Scott, Proposition III.5), and no SIC orbit has been seen with both types ([Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), Question 2), so the one in `fiducials/` is presumably in a different orbit from his. The one in `fibonacci/` (below) is of his type; we have not compared orbits.
 
 This is about explicit fiducials. A recent manuscript, [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf), claims the results needed for Zauner's conjecture in general; we have not checked it.
 
@@ -15,7 +15,7 @@ Each SIC is the orbit of a fiducial ψ under the d² displacements D_p = X^a Z^b
 
 ```sh
 python3 verify.py            # every file in fiducials/ and fibonacci/, double precision; max deviation at most about 5e-17 (Python 3.10+, standard library)
-uv run verify.py --precise   # 160 digits; PASS means deviation and the applicable symmetry residual below 1e-147 (here at most 1e-150); minutes per file
+uv run verify.py --precise   # 160 digits; PASS means deviation and the applicable symmetry residual below 1e-147 (here at most 1e-150)
 ```
 
 Both are direct O(d³) sums: at d = 2208 the first takes about 17 minutes on an M2 Max and `--precise` about 17 hours. GitHub Actions runs the first on every pull request and push to `main`, and weekly.
@@ -53,7 +53,7 @@ uv run refine_2208.py fiducial_2208_stark.txt --output fiducials/fiducial_2208.t
 python3 verify.py fiducials/fiducial_2208.txt
 ```
 
-`stark_2208.jl` pins the original quotient generators and reconstruction choices. Run this stage alone when limiting work to four cores; set the caller's BLAS thread count accordingly.
+`stark_2208.jl` pins the original quotient generators and reconstruction choices.
 
 For `fibonacci/fiducial_2208.txt`:
 
@@ -71,13 +71,13 @@ Fresh-copy rebuilds on an M2 Max, 96 GB, with installed package caches, Julia 1.
 | `fiducials/fiducial_2208.txt` | 521.3 | 851.8 | 15.38 |
 | `fibonacci/fiducial_2208.txt` | 61.5 | 908.1 | 0.156 |
 
-These runs shared at most four cores. Peak RSS is the larger stage peak for each file. After rebuilding, compare the published files:
+Peak RSS is the larger stage peak for each file. After rebuilding, compare the published files:
 
 ```sh
 git diff --exit-code fiducials/ fibonacci/
 ```
 
-`stark.jl` then `refine.py` rewrite the 14 algebraic files from 197 to 253 byte for byte, whatever the random seeds or the order of dimensions (Julia 1.13.2, macOS on Apple silicon). The early ones among the other 89 ran on earlier versions of `stark.jl` (each of which regenerated those 14 byte for byte); of those, only 206 and 214 were rerun with this one, and their refined files came out byte-identical. Of d = 199..300, 16 ran on Modal (Linux x86, same Project and Manifest), 294 on Modal then the Mac, and the rest on the Mac. The double-precision `stark.jl` output differs between the two in the 17th digit, but the refined files agreed byte for byte in both dimensions run on both (197 and 224). `search.py`'s unconstrained searches depend on floating-point details: a repeat finds SICs at its own pace.
+`stark.jl` then `refine.py` rewrite the 14 algebraic files from 197 to 253 byte for byte, whatever the random seeds or the order of dimensions (Julia 1.13.2, macOS on Apple silicon). The early ones among the other 89 ran on earlier versions of `stark.jl` (each of which regenerated those 14 byte for byte); of those, only 206 and 214 were rerun with this one, and their refined files came out byte-identical. Of d = 199..300, 16 ran on Modal (Linux x86, same Project and Manifest), 294 on Modal then the Mac, and the rest on the Mac. The double-precision `stark.jl` output differs between the two in the 17th digit, but the refined files agreed byte for byte in both dimensions run on both (197 and 224). Both 2208 files also rebuilt byte for byte on Linux x86 (Modal, 8 vCPUs, Julia 1.13.2, multithreaded OpenBLAS): the standard one in 18:06 of construction and 29:38 of refinement (peak 7.8 GB), the F_a one in 1:26 and 31:02 (0.26 GB). `search.py`'s unconstrained searches depend on floating-point details: a repeat finds SICs at its own pace.
 
 *Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote the code (`stark.jl` from Argon's) and this README; GPT-6 Astra found both d = 2208 SICs; GPT-6 packaged their reproduction code and revised its determinism and verification checks.*
 

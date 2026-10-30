@@ -20,7 +20,7 @@ fiducial_48g.txt is fetched separately from Grassl--Scott's source supplement at
 https://arxiv.org/src/1707.02944v2 (SHA-256 below). The alignment relations are Eqs.15--16
 of https://arxiv.org/abs/1905.09737. The antiunitary is Eqs.24--25 of 1707.02944.
 
-  uv run fibonacci_2208.py
+  uv run fibonacci_2208.py --fetch-input
 """
 
 import argparse
@@ -323,8 +323,7 @@ def main() -> None:
             fetch_input(input_path, response.read())
     model = Alignment(input_path)
     rng = np.random.default_rng(2348)
-    trial = 0
-    while True:
+    for trial in range(100):
         ambient = rng.normal(size=D) + 1j * rng.normal(size=D)
         start = (model.b.conj().T @ ambient).real
         start /= np.linalg.norm(start)
@@ -336,11 +335,11 @@ def main() -> None:
                 raise TrialFailure(f"Not a near-SIC: loss {loss}")
         except TrialFailure as error:
             print(f"trial {trial} failed: {error}", flush=True)
-            trial += 1
             continue
         write_seed(args.output, model.b @ x)
         print(f"wrote {args.output} (first converged trial: {trial})", flush=True)
         return
+    raise RuntimeError("no trial converged in 100")
 
 
 if __name__ == "__main__":
