@@ -11,10 +11,9 @@ imposing symmetry. At d = 2208 its dense Jacobian and ball matrices are too larg
 FFT rows stream the gradient, and conjugate gradients apply the fixed float64
 Gauss--Newton operator without storing it. Opposite displacement rows are paired
 in the ball gradient. Only the global phase null direction is lifted. The fixed
-batch order, one numerical thread, precision, tolerances and decimal formatting
-preserve the two published representatives.
-Unlike refine.py, retain nonzero parts below 1e-180: the original 2208 files
-printed those roundoff residues, so clipping them would change their hashes.
+batch order, precision and tolerances resolve the published digits. Parts below
+1e-180 are written as zero, using refine.py's threshold and search.py's rational
+decimal formatter. One numerical thread limits resource use.
 
   uv run refine_2208.py fiducial_2208_stark.txt --output fiducials/fiducial_2208.txt
   uv run refine_2208.py fiducial_2208_fibonacci_seed.txt --output fibonacci/fiducial_2208.txt
@@ -22,7 +21,7 @@ printed those roundoff residues, so clipping them would change their hashes.
 
 import argparse
 from collections.abc import Iterator
-from decimal import Decimal, localcontext
+from fractions import Fraction
 import os
 from pathlib import Path
 
@@ -35,7 +34,7 @@ from flint import acb, arb, ctx
 from scipy import fft
 from scipy.sparse.linalg import LinearOperator, cg
 
-from search import read_fiducial
+from search import fiducial_text, read_fiducial
 
 
 def batches(d: int, batch: int) -> Iterator[tuple[np.ndarray, np.ndarray]]:
@@ -85,16 +84,11 @@ def hp_gradient(psi: list[acb]) -> tuple[list[acb], arb, arb]:
     return gradient, worst, abs(norm - 1).mid()
 
 
-def scott(x: arb, digits: int) -> str:
-    """Round a ball midpoint to the original Scott--Grassl decimal convention."""
+def fraction(x: arb) -> Fraction:
+    """Use the same zero threshold as refine.py, then retain the binary midpoint."""
     mantissa, exponent = x.mid().man_exp()
-    with localcontext() as context:
-        context.prec = digits + 30
-        value = Decimal(int(mantissa)) * Decimal(2) ** int(exponent)
-        if value == 0:
-            return "+." + "0" * digits + "e0"
-        a, b = format(abs(value), f".{digits - 1}e").split("e")
-        return ("+" if value > 0 else "-") + "." + a.replace(".", "") + "e" + str(int(b) + 1)
+    value = Fraction(int(mantissa)) * Fraction(2) ** int(exponent)
+    return Fraction(0) if abs(value) < Fraction(1, 10**180) else value
 
 
 def write_hp(path: Path, psi: list[acb]) -> None:
@@ -103,8 +97,9 @@ def write_hp(path: Path, psi: list[acb]) -> None:
     phase = psi[0].conjugate() / abs(psi[0])
     normalized = [z * phase / norm for z in psi]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(scott(z.real, 150) + scott(arb(0) if j == 0 else z.imag, 150) + "i\n"
-                            for j, z in enumerate(normalized)))
+    rows = [(fraction(z.real), Fraction(0) if j == 0 else fraction(z.imag))
+            for j, z in enumerate(normalized)]
+    path.write_bytes(fiducial_text(rows, 150).encode("ascii"))
 
 
 def main() -> None:

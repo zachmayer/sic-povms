@@ -4,18 +4,20 @@
 # [tool.uv]
 # exclude-newer = "2026-10-19T00:00:00Z"
 # ///
-"""Rebuild the d=2208 Fibonacci-family double-precision seed, seed 2348, trial 3.
+"""Rebuild the d=2208 type F_a double-precision seed.
 
 This F_a representative needs an alignment-constrained search rather than stark.jl's
 standard-Zauner reconstruction. CRT factors of the Fibonacci antiunitary give 96 real
 coordinates; both even-dimensional alignment relations give 118 quadratic constraints.
 Projected L-BFGS with least-squares retraction minimizes the full SIC loss. FFT rows
 replace the dense overlap arrays of search.py/refine.py at this dimension. No cached
-basis, checkpoint, or previous trial is read. All arithmetic choices and the local RNG
-are fixed; BLAS and FFT calls use one thread. refine_2208.py supplies the 150 digits.
+basis, checkpoint, or previous trial is read. Seed 2348 supplies ambient complex
+vectors, projected onto the fixed space; trials run in order until the first SIC.
+Internal orthonormal coordinates do not select the start. BLAS and FFT calls use
+one thread to limit resource use. refine_2208.py supplies the 150 digits.
 
-fiducial_48g.txt is Grassl--Scott's published 48g, unchanged numerical text from
-https://arxiv.org/src/1707.02944 (SHA-256 below). The alignment relations are Eqs.15--16
+fiducial_48g.txt is fetched separately from Grassl--Scott's source supplement at
+https://arxiv.org/src/1707.02944v2 (SHA-256 below). The alignment relations are Eqs.15--16
 of https://arxiv.org/abs/1905.09737. The antiunitary is Eqs.24--25 of 1707.02944.
 
   uv run fibonacci_2208.py
@@ -23,24 +25,42 @@ of https://arxiv.org/abs/1905.09737. The antiunitary is Eqs.24--25 of 1707.02944
 
 import argparse
 import hashlib
+import io
 import os
 from pathlib import Path
+import tarfile
+from urllib.request import urlopen
 
-# These must precede numerical imports: the seeded optimizer's representative depends
-# on LAPACK's rounding, so thread-count changes must not change its arithmetic path.
+# Limit resource use before loading the numerical libraries.
 for variable in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
     os.environ[variable] = "1"
 
 import numpy as np
 from scipy import fft
 from scipy.linalg import eigh, schur, svd
-from scipy.optimize import least_squares
 
 from search import read_fiducial
 
 D = 2208
 K = 8
 INPUT_SHA256 = "f0b3517ccf6e9ebe40eea6cee62b436f80226e5bf99280a2f0b71f894dc9d090"
+INPUT_URL = "https://arxiv.org/src/1707.02944v2"
+
+
+class TrialFailure(RuntimeError):
+    """A search trial failed its explicit numerical convergence criteria."""
+
+
+def fetch_input(path: Path, archive: bytes) -> None:
+    """Extract only the checksummed numerical input, never archive paths."""
+    with tarfile.open(fileobj=io.BytesIO(archive)) as source:
+        member = source.extractfile("sicfiducial.48.g.150.txt")
+        if member is None:
+            raise ValueError("48g supplement is not a regular file")
+        data = member.read()
+    if hashlib.sha256(data).hexdigest() != INPUT_SHA256:
+        raise ValueError("Unexpected Grassl--Scott 48g supplement checksum")
+    path.write_bytes(data)
 
 
 def antiunitary(psi: np.ndarray) -> np.ndarray:
@@ -156,9 +176,11 @@ class Alignment:
         flat = operators.reshape(len(operators), -1)
         eigenvalues, u = eigh(flat @ flat.T)
         keep = eigenvalues > eigenvalues[-1] * 1e-12
-        if np.max(abs(u[:, ~keep].T @ values), initial=0) > 1e-7:
+        if np.linalg.norm(u[:, ~keep].T @ values) > 1e-7:
             raise ValueError("Inconsistent alignment polynomial relations")
         transform = (u[:, keep] / np.sqrt(eigenvalues[keep])).T
+        # Degenerate eigenspaces may rotate these rows. All subsequent choices
+        # use Euclidean norms and spectral projectors, preserving that metric.
         self.q = (transform @ flat).reshape(-1, self.b.shape[1], self.b.shape[1])
         self.t = transform @ values
 
@@ -169,15 +191,32 @@ class Alignment:
         return 2 * (self.q @ x)
 
     def tangent(self, x: np.ndarray) -> np.ndarray:
-        _, singular, v = svd(self.jacobian(x), full_matrices=False, lapack_driver="gesdd")
+        _, singular, v = svd(self.jacobian(x), full_matrices=False, lapack_driver="gesvd")
         return v[singular < 1e-7].T
 
     def retract(self, x: np.ndarray) -> np.ndarray:
-        fit = least_squares(self.residual, x, jac=self.jacobian, method="lm", max_nfev=100,
-                            ftol=1e-13, gtol=1e-13, xtol=1e-13)
-        if np.max(abs(self.residual(fit.x))) > 1e-9:
-            raise RuntimeError("Alignment retraction failed")
-        return fit.x
+        """Minimum-norm Newton corrections; never step along numerical null axes."""
+        x = x.copy()
+        for _ in range(100):
+            residual = self.residual(x)
+            error = np.linalg.norm(residual)
+            if error < 1e-15:
+                return x
+            u, singular, v = svd(self.jacobian(x), full_matrices=False, lapack_driver="gesvd")
+            # Resolve quadratic constraints more tightly than the tangent's
+            # 1e-7 cutoff, so their numerical null directions remain tangent.
+            keep = singular >= 1e-10
+            delta = -v[keep].T @ ((u[:, keep].T @ residual) / singular[keep])
+            step = min(1.0, 0.5 / max(np.linalg.norm(delta), 1e-15))
+            for _ in range(24):
+                candidate = x + step * delta
+                if np.linalg.norm(self.residual(candidate)) < error:
+                    x = candidate
+                    break
+                step *= 0.5
+            else:
+                raise TrialFailure("Alignment retraction line search failed")
+        raise TrialFailure("Alignment retraction failed in 100 corrections")
 
 
 def objective(b: np.ndarray, x: np.ndarray) -> tuple[float, np.ndarray]:
@@ -206,13 +245,15 @@ def objective(b: np.ndarray, x: np.ndarray) -> tuple[float, np.ndarray]:
 
 
 def minimize(model: Alignment, start: np.ndarray) -> np.ndarray:
-    """Projected L-BFGS, retaining the original trial's operation order."""
+    """Projected L-BFGS in the fixed space's Euclidean metric."""
     x = model.retract(start)
     loss, gradient = objective(model.b, x)
     tangent = model.tangent(x)
     projected = tangent @ (tangent.T @ gradient)
     history = []
     for iteration in range(500):
+        if iteration % 50 == 0:
+            print(f"iteration {iteration}: loss {loss:.3e}, tangent dimension {tangent.shape[1]}", flush=True)
         q, alphas, pairs = projected.copy(), [], []
         for s, y in history:
             s, y = tangent @ (tangent.T @ s), tangent @ (tangent.T @ y)
@@ -232,8 +273,10 @@ def minimize(model: Alignment, start: np.ndarray) -> np.ndarray:
         if slope >= 0:
             direction, slope, history = -projected, -np.dot(projected, projected), []
         if np.linalg.norm(projected) < 1e-11 or loss < 1e-22:
-            print(f"trial 3: {iteration} iterations, loss {loss:.3e}", flush=True)
+            print(f"{iteration} iterations, loss {loss:.3e}", flush=True)
             return x
+        if loss > 1e-8 and np.linalg.norm(projected) < 1e-7:
+            raise TrialFailure(f"Stationary non-SIC: loss {loss:.3e}")
         step = min(1.0, 0.5 / max(np.linalg.norm(direction), 1e-15))
         for _ in range(24):
             newx = model.retract(x + step * direction)
@@ -242,13 +285,13 @@ def minimize(model: Alignment, start: np.ndarray) -> np.ndarray:
                 break
             step *= 0.5
         else:
-            raise RuntimeError("Projected L-BFGS line search failed")
+            raise TrialFailure("Projected L-BFGS line search failed")
         newtangent = model.tangent(newx)
         newprojected = newtangent @ (newtangent.T @ newgradient)
         history.append((newx - x, newprojected - newtangent @ (newtangent.T @ projected)))
         history = history[-15:]
         x, loss, tangent, projected = newx, newloss, newtangent, newprojected
-    raise RuntimeError("No convergence in 500 iterations")
+    raise TrialFailure("No convergence in 500 iterations")
 
 
 def write_seed(path: Path, psi: np.ndarray) -> None:
@@ -262,26 +305,42 @@ def write_seed(path: Path, psi: np.ndarray) -> None:
         mantissa, exponent = f"{abs(x):.16e}".split("e")
         return f"{'+' if x > 0 else '-'}.{mantissa.replace('.', '')}e{int(exponent) + 1}"
 
-    path.write_text("".join(number(z.real) + number(z.imag) + "i\n" for z in psi))
+    path.write_bytes("".join(number(z.real) + number(z.imag) + "i\n" for z in psi).encode("ascii"))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--output", type=Path, default=Path("fiducial_2208_fibonacci_seed.txt"))
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--fetch-input", action="store_true", help="fetch the checksummed arXiv 48g supplement")
+    source.add_argument("--source-archive", type=Path, help="extract 48g from a local arXiv source tarball")
     args = parser.parse_args()
-    model = Alignment(Path(__file__).with_name("fiducial_48g.txt"))
+    input_path = Path(__file__).with_name("fiducial_48g.txt")
+    if args.source_archive:
+        fetch_input(input_path, args.source_archive.read_bytes())
+    elif args.fetch_input:
+        with urlopen(INPUT_URL, timeout=60) as response:
+            fetch_input(input_path, response.read())
+    model = Alignment(input_path)
     rng = np.random.default_rng(2348)
-    for _ in range(4):
-        start = rng.normal(size=model.b.shape[1])
+    trial = 0
+    while True:
+        ambient = rng.normal(size=D) + 1j * rng.normal(size=D)
+        start = (model.b.conj().T @ ambient).real
         start /= np.linalg.norm(start)
-    x = minimize(model, start)
-    psi = model.b @ x
-    # A failed search must never silently become refinement input.
-    loss, _ = objective(model.b, x)
-    if loss >= 1e-20:
-        raise RuntimeError(f"Trial 3 did not reach a near-SIC: loss {loss}")
-    write_seed(args.output, psi)
-    print(f"wrote {args.output}", flush=True)
+        print(f"trial {trial}:", flush=True)
+        try:
+            x = minimize(model, start)
+            loss, _ = objective(model.b, x)
+            if loss >= 1e-20:
+                raise TrialFailure(f"Not a near-SIC: loss {loss}")
+        except TrialFailure as error:
+            print(f"trial {trial} failed: {error}", flush=True)
+            trial += 1
+            continue
+        write_seed(args.output, model.b @ x)
+        print(f"wrote {args.output} (first converged trial: {trial})", flush=True)
+        return
 
 
 if __name__ == "__main__":

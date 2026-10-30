@@ -20,9 +20,6 @@ isempty(ARGS) || error("usage: julia --project=. stark_2208.jl")
 include("stark.jl")                 # empty ARGS: definitions only
 import Nemo
 using Nemo: AcbField, acb_struct
-# Four BLAS threads reproduce the original QR/eigensolver arithmetic path;
-# this fixed setting overrides the caller's thread environment.
-BLAS.set_num_threads(4)
 
 "Cocycle product for L=[7 -1;1 0]; first-label integer shifts have correction 1."
 function orbit_shin(F, p1, p2)
@@ -250,7 +247,7 @@ function construct_2208()
     F = AdmissibleTuple(2208, QuadBin(1,-7,1))
     P, S = arithmetic_orbit(F)
     lap("fixed arithmetic quotient")
-    ψ = setprecision(() -> cocycle_ghost(AdmissibleTuple(2208, QuadBin(1,-7,1))), BigFloat, 128)
+    ψ = setprecision(() -> cocycle_ghost(F), BigFloat, 128)
     ψ = bump_fft(bump_fft(ψ, 512), 2048)
     lap("2048-bit ghost")
     return setprecision(BigFloat, 2048) do
