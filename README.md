@@ -7,18 +7,18 @@ This repo has a numerical Weyl–Heisenberg SIC fiducial for every d from 197 to
 - **No SIC found published before (95 dimensions):** every d in 197..300 except the nine below.
 - **SIC known before (9):** in papers, 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)) and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)); only in talks or surveys, 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21) and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl). Ours may lie in different orbits from those; we have not checked orbit equivalence.
 
-It also has one in d = 2208, the Fibonacci–Lucas dimension where Grassl reported a numerical SIC in 2021 ([slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 14) but has posted none; we have not compared orbits there either.
+It also has one in d = 2208, a Fibonacci–Lucas dimension ([Grassl and Scott](https://arxiv.org/abs/1707.02944)). Grassl has reported a numerical Fibonacci–Lucas SIC there ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting his 2020 talk; [2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 12); we found no posted fiducial. In d = 2208 a Fibonacci–Lucas SIC's order-3 symmetry is of type F_a, not Zauner's (Grassl and Scott, Proposition III.5), and no SIC orbit has been seen with both types ([Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), Question 2), so ours is presumably in a different orbit from his. One of his type is in `fibonacci/` (below); we have not compared orbits.
 
 This is about explicit fiducials. A recent manuscript, [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf), claims the results needed for Zauner's conjecture in general; we have not checked it.
 
 Each SIC is the orbit of a fiducial ψ under the d² displacements D_p = X^a Z^b (up to phase), so ψ determines it. `fiducials/fiducial_<d>.txt` gives ψ to 150 digits in the file format and conventions of Scott and Grassl ([arXiv:0910.5784](https://arxiv.org/abs/0910.5784)) and Scott (arXiv:1703.03993): unit norm, ψ_0 real and positive, and an eigenvector of their order-3 Zauner unitary U_Z. These are numerical solutions, not exact ones. `verify.py` checks all of it and shares no code with the other scripts:
 
 ```sh
-python3 verify.py            # every file, double precision; max deviation at most about 5e-17 (Python 3.10+, standard library)
+python3 verify.py            # every file in fiducials/, double precision; max deviation at most about 5e-17 (Python 3.10+, standard library)
 uv run verify.py --precise   # 160 digits; PASS means deviation and Zauner residual below 1e-147 (here at most 1e-150); minutes per file
 ```
 
-Both are direct O(d³) sums: at d = 2208 the first takes about 17 minutes and `--precise` about 17 hours. GitHub Actions runs the first on every push and pull request, and weekly.
+Both are direct O(d³) sums: at d = 2208 the first takes about 17 minutes on an M2 Max and `--precise` about 17 hours. GitHub Actions runs the first on every pull request and push to `main`, and weekly.
 
 ## How they were found
 
@@ -28,7 +28,7 @@ Both are direct O(d³) sums: at d = 2208 the first takes about 17 minutes and `-
 
 `refine.py` takes each fiducial from double precision to 150 digits by Gauss–Newton in 640-bit arithmetic, and writes a real or imaginary part below 1e-180 as 0 (the converged residual is about 1e-194).
 
-**d = 2208** by the same method at order conductor q = 3 (form ⟨1,−7,1⟩ over ℚ(√5), class number 1), with prototype code that is not in this repo. Two changes made it fit a laptop: it evaluates the Stark units' cocycle as a product along the orbit of the form's companion matrix, which removes about 4.6×10¹² terms of q-Pochhammer recurrences, and it streams the 405,504 ghost units instead of holding them. It ran in 49 minutes on a 12-core Mac, and a 640-bit Gauss–Newton refinement like `refine.py`'s, using FFTs, took it to 150 digits. Since 2208 ≡ 3 mod 9, the conductor decides which order-3 symmetry the SIC has: q = 1 gives the Fibonacci type of Grassl and Scott ([arXiv:1707.02944](https://arxiv.org/abs/1707.02944)) rather than U_Z. A SIC of that type, found by lifting their d = 48 fiducial along the aligned pair 48 → 48·46, is in `fibonacci/`; `verify.py` does not check it.
+**d = 2208** by the same method at order conductor q = 3 (form ⟨1,−7,1⟩, discriminant 45, class number 1), with prototype code that is not in this repo. It evaluates the Shintani–Faddeev cocycle as a product along the orbit of the form's companion matrix instead of through long q-Pochhammer recurrences, and a 640-bit Gauss–Newton refinement like `refine.py`'s, using FFTs, took it to 150 digits. Since 2208 ≡ 3 mod 9, the conductor fixes the type of the order-3 symmetry ([Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), Theorem 7.21): q = 3 gives Zauner's, and q = 1 gives F_a, the type of Grassl and Scott's Fibonacci–Lucas SIC here. `fibonacci/fiducial_2208.txt` is of type F_a; it came from a numerical search constrained to align with their d = 48 fiducial (48 → 48·46). `python3 verify.py fibonacci/fiducial_2208.txt` finds its overlaps right (max deviation 9.7e-18) and fails it for not being an eigenvector of U_Z; nothing here checks its F_a symmetry.
 
 [RESULTS.md](RESULTS.md) gives, for the 89 dimensions in 199..300 added last, the form, conductor, class number, eigenvalue, machine, run time and memory.
 
