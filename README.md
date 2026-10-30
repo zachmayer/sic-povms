@@ -1,4 +1,4 @@
-# SIC-POVMs in every dimension from 197 to 300
+# SIC-POVMs in every dimension from 197 to 300, and in 2208
 
 A SIC (symmetric informationally complete POVM) in dimension d is a set of d² unit vectors in ℂ^d with |⟨ψ_i|ψ_j⟩|² = 1/(d+1) for every pair i ≠ j. Zauner conjectured in 1999 ([thesis](http://www.gerhardzauner.at/documents/gz-quantendesigns.pdf); [English](https://doi.org/10.1142/S0219749911006776)) that one exists in every dimension. SICs are known in every dimension up to 196 ([Bengtsson and Grassl](https://arxiv.org/abs/2512.13201)) and in some higher ones.
 
@@ -6,6 +6,8 @@ This repo has a numerical Weyl–Heisenberg SIC fiducial for every d from 197 to
 
 - **No SIC found published before (95 dimensions):** every d in 197..300 except the nine below.
 - **SIC known before (9):** in papers, 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)) and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)); only in talks or surveys, 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21) and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl). Ours may lie in different orbits from those; we have not checked orbit equivalence.
+
+It also has one in d = 2208, the Fibonacci–Lucas dimension where Grassl reported a numerical SIC in 2021 ([slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 14) but has posted none; we have not compared orbits there either.
 
 This is about explicit fiducials. A recent manuscript, [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf), claims the results needed for Zauner's conjecture in general; we have not checked it.
 
@@ -16,6 +18,8 @@ python3 verify.py            # every file, double precision; max deviation at mo
 uv run verify.py --precise   # 160 digits; PASS means deviation and Zauner residual below 1e-147 (here at most 1e-150); minutes per file
 ```
 
+Both are direct O(d³) sums: at d = 2208 the first takes about 17 minutes and `--precise` about 17 hours. GitHub Actions runs the first on every push and pull request, and weekly.
+
 ## How they were found
 
 **d = 198** by Scott's numerical method: random starts in the eigenvalue-1 eigenspace of U_Z, each minimized with L-BFGS (`search.py`). It ran on 800 cloud cores with [Modal](https://modal.com) (`modal_search.py`) and found this SIC within its first hour.
@@ -23,6 +27,8 @@ uv run verify.py --precise   # 160 digits; PASS means deviation and Zauner resid
 **The other 103** by the algebraic method of Appleby, Flammia and Kopp ([arXiv:2501.03970](https://arxiv.org/abs/2501.03970)), which builds a fiducial from Stark units instead of searching for one. `stark.jl` computes a ghost's overlaps on one Galois orbit to thousands of bits (Gauss–Newton), recognizes integral trace forms of them by LLL in a ring class field H of ℚ(√((d+1)(d−3))), applies an automorphism of H that negates the square root, reconstructs the SIC's overlaps on that orbit, and completes the fiducial by alternating projections. It runs Flammia's [Zauner.jl](https://github.com/sflammia/Zauner.jl), pinned by commit, handles odd and even d and forms beyond Zauner.jl's table, and replaces the steps that fail or take hours at these sizes (each replacement says why). One thread per dimension: from 4 minutes to about a day at class number h ≈ 40, under 25 GB. Its choices are canonical (see its header): of a dimension's Galois-conjugate SICs it returns a fixed one, and of that SIC's images under the Clifford unitaries that commute with U_Z, a fixed fiducial. The rule goes by Galois data, not eigenvalue, so some files lie in U_Z's ω or ω² eigenspace (`verify.py` prints each file's).
 
 `refine.py` takes each fiducial from double precision to 150 digits by Gauss–Newton in 640-bit arithmetic, and writes a real or imaginary part below 1e-180 as 0 (the converged residual is about 1e-194).
+
+**d = 2208** by the same method at order conductor q = 3 (form ⟨1,−7,1⟩ over ℚ(√5), class number 1), with prototype code that is not in this repo. Two changes made it fit a laptop: it evaluates the Stark units' cocycle as a product along the orbit of the form's companion matrix, which removes about 4.6×10¹² terms of q-Pochhammer recurrences, and it streams the 405,504 ghost units instead of holding them. It ran in 49 minutes on a 12-core Mac, and a 640-bit Gauss–Newton refinement like `refine.py`'s, using FFTs, took it to 150 digits. Since 2208 ≡ 3 mod 9, the conductor decides which order-3 symmetry the SIC has: q = 1 gives the Fibonacci type of Grassl and Scott ([arXiv:1707.02944](https://arxiv.org/abs/1707.02944)) rather than U_Z. A SIC of that type, found by lifting their d = 48 fiducial along the aligned pair 48 → 48·46, is in `fibonacci/`; `verify.py` does not check it.
 
 [RESULTS.md](RESULTS.md) gives, for the 89 dimensions in 199..300 added last, the form, conductor, class number, eigenvalue, machine, run time and memory.
 
@@ -41,6 +47,6 @@ With `STARK_CHECKPOINTS=<dir>` (an existing directory, fresh for each version of
 
 `stark.jl` then `refine.py` rewrite the 14 algebraic files from 197 to 253 byte for byte, whatever the random seeds or the order of dimensions (Julia 1.13.2, macOS on Apple silicon). The early ones among the other 89 ran on earlier versions of `stark.jl` (each of which regenerated those 14 byte for byte); of those, only 206 and 214 were rerun with this one, and their refined files came out byte-identical. Of d = 199..300, 16 ran on Modal (Linux x86, same Project and Manifest), 294 on Modal then the Mac, and the rest on the Mac. The double-precision `stark.jl` output differs between the two in the 17th digit, but the refined files agreed byte for byte in both dimensions run on both (197 and 224). Searches are not repeatable: each trial's path depends on floating-point details, so a repeat finds SICs at its own pace.
 
-*Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote the code (`stark.jl` from Argon's) and this README.*
+*Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote the code (`stark.jl` from Argon's) and this README; GPT-6 Astra found both d = 2208 SICs.*
 
 Public domain (CC0).
