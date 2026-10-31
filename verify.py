@@ -121,9 +121,13 @@ def main():
                  if re.fullmatch(r"fiducial_\d+\.txt", p.name)]
     failed = False
     for path in files:
-        rows = [re.findall(r"[+-]\.\d+e-?\d+", line)
+        rows = [re.fullmatch(r"([+-]\.\d+e-?\d+)([+-]\.\d+e-?\d+)i", line.strip())
                 for line in path.read_text().splitlines() if line.strip()]
-        parts = [(re_.replace(".", "0.", 1), im.replace(".", "0.", 1)) for re_, im in rows]
+        if len(rows) < 2 or not all(rows):
+            print(f"{path.name}: malformed line, not 'real imaginary i' in Scott and Grassl's layout FAIL")
+            failed = True
+            continue
+        parts = [(row[1].replace(".", "0.", 1), row[2].replace(".", "0.", 1)) for row in rows]
         psi = ([acb(re_, im) for re_, im in parts] if precise else
                np.array([complex(float(re_), float(im)) for re_, im in parts]))
         d = len(psi)
