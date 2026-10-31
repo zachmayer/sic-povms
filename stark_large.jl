@@ -2,16 +2,18 @@
 # reconstruction. Run: julia --project=. --threads=1 stark_large.jl DIMENSION
 # Then: uv run refine_large.py fiducial_DIMENSION_stark.txt --output FILE
 #
-# Canonical choices (no Hecke generators or random bases select a new result):
+# Canonical rule for dimensions without a representative pin:
 # * Choose the least b>=3 with b^2-4=D*q^2, q|f, and standard-Zauner symmetry,
-#   where (d+1)(d-3)=D*f^2. The form is <1,-b,1>; unsupported forms fail.
+#   where (d+1)(d-3)=D*f^2. The form is <1,-b,1>; b=d-1 always qualifies
+#   for d>=4. Its conductor can exceed stark.jl's choice (e.g. d=206 or 199).
 # * Work modulo d for odd d, 2d for even d. Quotient by the FULL overlap
 #   stabilizer, including a negative-norm unit when present (no conjugation).
 # * Prime-power quotient axes: increasing prime, decreasing exponent; for each
 #   axis choose the first (a,y) in lexicographic residue order for a*I+y*L
 #   having that order both before and after quotienting by previous axes.
 # * Normal-basis recipes: linear, shifted quadratic, squared quadratic, with
-#   shifts in Julia column-major order; Fourier coefficients must exceed 2^-128.
+#   shifts enumerated by Zauner.radix, last index fastest; Fourier coefficients
+#   must exceed 2^-128.
 # * Conjugation maximizes sigma(sum(u^2)), as stark.jl. Each multiplication
 #   matrix uses the root with smallest (Re,Im), rounded to 10 decimal places;
 #   a collision between distinct roots fails rather than choosing an eigenbasis.
@@ -19,11 +21,13 @@
 #   det([v,Kv])=1, defines the standard-Zauner map. Reconstruction ranks fits
 #   rounded to 10 decimal places, then column-major shift index; the first
 #   converging determinant class wins. Power iteration starts from e_0.
-# * representatives.toml preserves the three pre-existing numerical outputs:
-#   their quotient coordinates came from Hecke, not a reproducible arithmetic
-#   rule. This small table pins integer generators, never a ghost/seed/vector.
-#   It also pins determinant shifts tied at roundoff and preserves their start
-#   rule; unrounded fit ranking cannot reproduce those choices portably.
+# * representatives.toml pins representatives from an unpublished prototype run
+#   so its Mac runs and the Linux rebuilds compare byte for byte. Their quotient
+#   coordinates came from Hecke, not an arithmetic rule derived from d. The table
+#   pins integer generators and determinant shifts tied at roundoff; construction
+#   retains the prototype's start rule. It also pins the separate Fibonacci
+#   search's random seed, never a saved numerical vector. Every published large-d
+#   file uses pinned data; test_large.py tests the canonical rule only at small d.
 #
 # The cocycle is factored along L's label orbit; ghost residuals and unit rows
 # use FLINT FFTs. A frozen Float64 QR corrects the full-precision ghost.
@@ -31,7 +35,7 @@
 # owner/sign maps on disk, avoiding complex d-by-d arrays. Final refinement is
 # full-space at 640 bits, without a Float64 invariant-space constraint.
 # Checkpoints bind source, dimension and precision; use a fresh directory after
-# changing Julia/platform. Published digits require a fresh Linux rebuild.
+# changing precision, source, Julia or platform. Rebuild evidence is in RESULTS.md.
 
 const cli_args = copy(ARGS)
 empty!(ARGS)
@@ -211,7 +215,8 @@ end
 
 """Full-space high-precision ghost residuals with a frozen Float64 QR solve.
 Scale residuals before conversion to avoid underflow. No inexact symmetry basis
-constrains the final vector. Refresh the Jacobian only if convergence stalls.
+constrains the final vector. Abort if the residual fails to halve at a step;
+the Jacobian is not refreshed.
 """
 function bump_float(ψ,bits;name="ghost",maxsteps=100)
     setprecision(BigFloat,bits) do

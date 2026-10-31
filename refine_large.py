@@ -16,7 +16,10 @@ They retain gradient row progress and CG approximations. With --workers 2..8,
 independent gradient shards run in separate processes and checkpoint separately.
 The normal solve is serial. All BLAS/FFT thread counts must be one per process
 (this script sets these). Final files require an independent all-overlap and
-standard-Zauner check. This is numerical refinement, not an exact proof.
+symmetry check (standard Zauner or Fibonacci, according to the output folder).
+This is numerical refinement. All published large-d inputs select representatives
+from an unpublished prototype run via representatives.toml, retained so its Mac
+runs and Linux rebuilds compare byte for byte.
 """
 
 import argparse

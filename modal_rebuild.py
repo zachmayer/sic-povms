@@ -11,10 +11,13 @@ modal volume get sic-large-rebuild /RUN_ID ./modal_results
 The entrypoint prints RUN_ID and call IDs, then exits. Results, logs, stage times
 and SHA-256 comparisons live on the Volume, independently of the client. A long
 file gets sequential 22-hour calls, resuming only its own numerical checkpoints.
-SIC_REBUILD_MEMORY_MIB defaults to 65536; set 262144 for a future d=39604 file.
-SIC_REBUILD_BLAS_THREADS defaults to 8 (test 1 and 8 in separate runs).
+SIC_REBUILD_MEMORY_MIB defaults to 65536 MiB per file.
+SIC_REBUILD_BLAS_THREADS (default 8) sets Julia's BLAS threads; the Python stages always pin one.
 This uploads the local repository snapshot; no GitHub checkout or saved seed is
 used. Only the selected output is removed from each isolated fresh working copy.
+Published large-d files use representatives.toml's pins from an unpublished
+prototype run so its Mac runs and Linux rebuilds compare byte for byte. These
+rebuilds exercise pinned choices; test_large.py tests the canonical rule at small d.
 """
 
 import hashlib

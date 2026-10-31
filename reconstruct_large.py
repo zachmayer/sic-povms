@@ -17,6 +17,11 @@ The default power iteration uses the largest-magnitude eigenpair. A genuine
 partial rank-one projector is expected to have a dominant positive eigenvalue;
 negative candidates are rejected. This expectation is a numerical search
 heuristic, not a proof that all unsuccessful shifts can be excluded.
+
+For every published standard-Zauner large-d file, metadata selects the quotient
+coordinates, determinant shift and start rule of an unpublished prototype run.
+representatives.toml pins those choices so its Mac runs and Linux rebuilds
+compare byte for byte. test_large.py exercises the canonical rule only at small d.
 """
 
 import argparse
@@ -88,7 +93,7 @@ def normalized(vector: np.ndarray) -> np.ndarray:
 
 
 def shift_order(fits: np.ndarray, shifts: np.ndarray, preferred: int) -> np.ndarray:
-    """Canonical fit ranking, or the pinned existing Clifford representative."""
+    """Canonical fit ranking, or a pinned unpublished-prototype representative."""
     if preferred < 0:
         return np.argsort(np.round(fits, 10), kind="stable")
     order = np.flatnonzero(shifts == preferred)

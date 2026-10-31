@@ -1,12 +1,14 @@
-# Integer coordinate choices of the existing numerical representatives. Hecke's
+# Integer coordinate choices from an unpublished prototype run, retained so its
+# Mac runs and Linux rebuilds compare byte for byte. Hecke's
 # unit-group basis is noncanonical. Replacing it can select a Clifford image and
 # change every digit. These are quotient generators, not saved numerical inputs.
 # The original best-fit shifts can differ only by roundoff between Clifford
 # images. Pin their zero-based column-major group indices as well; unrounded
 # Float64 fits cannot select those same images across BLAS/platform builds.
-# The retained Fibonacci search's ambient seed also selects an existing
-# representative; it has no arithmetic derivation from d.
-# All other dimensions compute lexicographic cyclic complements from d.
+# The Fibonacci search's ambient seed selects that prototype's representative;
+# it has no arithmetic derivation from d. Every published large-d file uses pinned
+# data. Other dimensions compute lexicographic cyclic complements from d; only
+# test_large.py exercises this canonical rule, at small d.
 [2208]
 fibonacci_seed = 2348
 shift = 111376
