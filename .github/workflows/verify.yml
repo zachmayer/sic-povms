@@ -13,15 +13,25 @@ permissions:
 
 jobs:
   verify:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - run: uv run verify.py
-      - run: uv run verify.py fiducials/fiducial_197.txt fiducials/fiducial_198.txt fibonacci/fiducial_2208.txt --precise
+      - run: uv run verify.py fiducials/fiducial_197.txt fiducials/fiducial_198.txt --precise
       - name: a file in the wrong folder fails
         run: |
           mkdir -p "$RUNNER_TEMP/fibonacci"
           cp fiducials/fiducial_197.txt "$RUNNER_TEMP/fibonacci/"
           ! uv run verify.py "$RUNNER_TEMP/fibonacci/fiducial_197.txt"
+
+  precise:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv run verify.py --precise
