@@ -143,12 +143,12 @@ The 15128 run ID is `83d8ca5483764e0b855c7cb21047df57`. Its local result record 
 
 A fresh offline default sweep passed all 108 files in 11.96 s, including uv startup, using Python 3.13 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
 
-| published file | maximum deviation, precise upper bound | U_Z residual, precise upper bound | precise check (s) |
-|---|---:|---:|---:|
-| `fiducials/fiducial_5779.txt` | TBD-PRECISE | TBD-PRECISE | TBD-PRECISE |
-| `fiducials/fiducial_15128.txt` | TBD-PRECISE | TBD-PRECISE | TBD-PRECISE |
+| published file | maximum deviation, precise upper bound | U_Z residual, precise upper bound | U_Z eigenvalue |
+|---|---:|---:|---|
+| `fiducials/fiducial_5779.txt` | 4.4e-153 | 9.1e-152 | ω⁰ |
+| `fiducials/fiducial_15128.txt` | 3.0e-152 | 6.6e-152 | ω² |
 
-The precise-verification log for these two files has not reported results as of 31 October 2026.
+Both ran in one `uv run verify.py fiducials/fiducial_5779.txt fiducials/fiducial_15128.txt --precise` call on the M2 Max: 4,504 s wall time in total, while other jobs shared the machine.
 
 ### Literature status
 
