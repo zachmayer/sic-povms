@@ -4,16 +4,24 @@
 # [tool.uv]
 # exclude-newer = "2026-10-19T00:00:00Z"
 # ///
-"""Check that files hold SIC-POVM fiducials in Scott and Grassl's conventions; by default every fiducials/fiducial_<d>.txt.
+"""Check SIC-POVM fiducials; by default every fiducial_<d>.txt in fiducials/ and fibonacci/.
 
 A unit vector psi in C^d is a SIC fiducial iff |<psi|X^a Z^b|psi>|^2 = 1/(d+1) for every (a, b) != (0, 0),
 where X|k> = |k+1 mod d> and Z|k> = exp(2 pi i k/d)|k>. Scott and Grassl's conventions (arXiv:0910.5784):
 psi_0 real and positive, and psi an eigenvector of their order-3 Zauner unitary
 U_Z[r,s] = exp(i pi (d-1)/12)/sqrt(d) exp(i pi (2rs + (d+1) r^2)/d), whose eigenvectors Scott's Zauner-type
-fiducials in arXiv:1703.03993 are (checked: d = 52, 55, 60, 67, 70, 88). This check shares no code with the other scripts.
+fiducials in arXiv:1703.03993 are (checked: d = 52, 55, 60, 67, 70, 88).
 
-python verify.py [FILE ...]             # double precision, standard library only, about 1 s per file
-uv run verify.py [FILE ...] --precise   # 160 digits, about 3 min per file
+Files whose parent directory is fibonacci instead obey Grassl and Scott's Fibonacci
+antiunitary F_f = [[0,1],[1,1]] (arXiv:1707.02944v2, Eqs. 24--25):
+A psi[r] = sum_s tau^(r^2 + 2rs) conjugate(psi[s])/sqrt(d), tau = -exp(pi i/d).
+We check A psi = lambda psi with an arbitrary phase lambda. For d = L_(2k) + 1,
+F_f^(2k) is an order-3 symmetry, of type F_a when k is divisible by 4
+(Proposition III.5); d = 2208 has k = 8. Even-d phases are evaluated modulo 2d.
+This check shares no code with the other scripts.
+
+python verify.py [FILE ...]             # double precision, standard library only
+uv run verify.py [FILE ...] --precise   # 160 digits; much slower at large d
 """
 
 import cmath
@@ -31,7 +39,8 @@ else:
     one, cplx, root = 1.0, lambda re_, im: complex(float(re_), float(im)), lambda t: cmath.exp(2j * cmath.pi * t)
 
 files = [Path(arg) for arg in sys.argv[1:] if arg != "--precise"]
-here = sorted((Path(__file__).parent / "fiducials").glob("fiducial_*.txt"))
+here = [p for folder in ("fiducials", "fibonacci")
+        for p in sorted((Path(__file__).parent / folder).glob("fiducial_*.txt"))]
 failed = False
 for path in files or [p for p in here if re.fullmatch(r"fiducial_\d+\.txt", p.name)]:
     rows = [re.findall(r"[+-]\.\d+e-?\d+", line) for line in path.read_text().splitlines() if line.strip()]
@@ -45,8 +54,10 @@ for path in files or [p for p in here if re.fullmatch(r"fiducial_\d+\.txt", p.na
             if (a, b) != (0, 0):
                 overlap = sum(v[k] * w[2 * b * k % (2 * d)] for k in range(d))
                 worst = max(worst, abs(abs(overlap) ** 2 - one / (d + 1)))
-    u = root(one * (d - 1) / 24) / (one * d) ** (one / 2)
-    U_psi = [u * sum(w[(2 * r * s + (d + 1) * r * r) % (2 * d)] * psi[s] for s in range(d)) for r in range(d)]
+    fibonacci = path.resolve().parent.name == "fibonacci"
+    u = (one if fibonacci else root(one * (d - 1) / 24)) / (one * d) ** (one / 2)
+    vector = [p.conjugate() for p in psi] if fibonacci else psi
+    U_psi = [u * sum(w[(2 * r * s + (d + 1) * r * r) % (2 * d)] * vector[s] for s in range(d)) for r in range(d)]
     lam = sum(p.conjugate() * q for p, q in zip(psi, U_psi, strict=True))
     zauner = max(abs(q - lam * p) for p, q in zip(psi, U_psi, strict=True))
     named = re.fullmatch(r"fiducial_(\d+)\.txt", path.name)
@@ -54,5 +65,8 @@ for path in files or [p for p in here if re.fullmatch(r"fiducial_\d+\.txt", p.na
     ok = ok and max(worst, zauner) < (1e-147 if precise else 1e-12)
     failed |= not ok
     k = round(cmath.phase(complex(lam)) / (2 * cmath.pi / 3)) % 3  # U_Z's eigenvalues are the cube roots of unity
-    print(f"{path.name}: d = {d}, max deviation {float(worst):.1e}, Zauner residual {float(zauner):.1e}, eigenvalue ω^{k} {'PASS' if ok else 'FAIL'}")
+    if fibonacci:
+        print(f"{path.name}: d = {d}, max deviation {float(worst):.1e}, Fibonacci F_f residual {float(zauner):.1e} {'PASS' if ok else 'FAIL'}")
+    else:
+        print(f"{path.name}: d = {d}, max deviation {float(worst):.1e}, Zauner residual {float(zauner):.1e}, eigenvalue ω^{k} {'PASS' if ok else 'FAIL'}")
 sys.exit(failed)
