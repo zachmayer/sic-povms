@@ -18,7 +18,7 @@ python3 verify.py            # every file in fiducials/ and fibonacci/, double p
 uv run verify.py --precise   # 160 digits; PASS means deviation and the applicable symmetry residual below 1e-147 (here at most 1e-150)
 ```
 
-Both are direct O(d³) sums: at d = 2208 the first takes about 17 minutes on an M2 Max and `--precise` about 17 hours. GitHub Actions runs the first on every pull request and push to `main`, and weekly.
+Both are direct O(d³) sums: at d = 2208 the first takes about 17 minutes on an M2 Max and `--precise` 18 hours (both 2208 files at once, on a busy machine). GitHub Actions runs the first on every pull request and push to `main`, and weekly.
 
 ## How they were found
 
