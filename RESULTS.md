@@ -123,7 +123,7 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 | `fiducials/fiducial_2208.txt` | 1,288.82 | 286.65 | Byte-identical |
 | `fibonacci/fiducial_2208.txt` | 91.62 | 291.13 | Byte-identical |
 | `fiducials/fiducial_5779.txt` | 9,634.27 | 4,915.08 | Byte-identical |
-| `fiducials/fiducial_15128.txt` | TBD-15128 | TBD-15128 | Running; no completed hash comparison |
+| `fiducials/fiducial_15128.txt` | 59,529.71 | 20,411.23 | Byte-identical |
 
 The 64 GiB reservation is not a peak-RSS measurement. Peak RSS is unavailable in the retained local records; `/usr/bin/time -v` records it in the stage logs on the `sic-large-rebuild` Volume.
 
@@ -134,8 +134,9 @@ The runner compares SHA-256 of the rebuilt and published bytes. The completed re
 | `fiducials/fiducial_2208.txt` | `2d79f5ee3be840328548c6ea125e33da` | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
 | `fibonacci/fiducial_2208.txt` | `345d62c286d949c595eb1f029d92adc9` | `811ca49245b4c36b0027a0ed42895073e32108104fd15880aeddf57f191eb435` |
 | `fiducials/fiducial_5779.txt` | `feb416d67f27421bb3fcadf9bfd01a7b` | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
+| `fiducials/fiducial_15128.txt` | `83d8ca5483764e0b855c7cb21047df57` | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-The 15128 run ID is `83d8ca5483764e0b855c7cb21047df57`. Its local result record reports construction still running as of 31 October 2026; its timing cells remain `TBD-15128`. These runs used eight Julia BLAS threads; they do not establish equality across all thread counts or BLAS builds.
+The 15128 container was restarted seven times and resumed each time from its checkpoints on the Volume; its refinement time sums two call slices (19,668.87 + 742.35 s). These runs used eight Julia BLAS threads. Rebuilds of the standard 2208 file and of 5779 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`) were also byte-identical, and 15128's Mac and Linux builds used four and eight BLAS threads.
 
 ### Saved-file verification
 
