@@ -1,0 +1,26 @@
+# Integer coordinate choices from an unpublished prototype run, retained so its
+# Mac runs and Linux rebuilds compare byte for byte. Hecke's
+# unit-group basis is noncanonical. Replacing it can select a Clifford image and
+# change every digit. These are quotient generators, not saved numerical inputs.
+# The original best-fit shifts can differ only by roundoff between Clifford
+# images. Pin their zero-based column-major group indices as well; unrounded
+# Float64 fits cannot select those same images across BLAS/platform builds.
+# The Fibonacci search's ambient seed selects that prototype's representative;
+# it has no arithmetic derivation from d. Every published large-d file uses pinned
+# data. Other dimensions compute lexicographic cyclic complements from d; only
+# test_large.py exercises this canonical rule, at small d.
+[2208]
+fibonacci_seed = 2348
+shift = 111376
+orders = [2, 8, 16, 3, 16, 3, 11]
+matrices = [[3679,0,0,3679], [1207,3725,691,786], [1093,4032,384,2821], [2991,23,4393,3152], [4111,1614,2802,2161], [3471,1847,2569,3152], [673,0,0,673]]
+
+[5779]
+shift = 171
+orders = [107, 2, 27, 107]
+matrices = [[873,3431,2348,5387], [102,5711,68,5677], [3174,38,5741,3288], [2397,790,4989,4767]]
+
+[15128]
+shift = 86590
+orders = [2,2,2,3,4,3,5,4,3,5,4,3,5]
+matrices = [[3905,0,0,3905], [4347,16389,13867,23258], [1027,17890,12366,24441], [29136,8185,22071,23435], [21949,18352,11904,16493], [15383,19131,11125,12264], [8689,5296,24960,24577], [22569,9920,20336,22073], [8935,21611,8645,13256], [14193,21200,9056,17281], [3905,11346,18910,7687], [22632,6893,23363,13055], [26841,7808,22448,20009]]

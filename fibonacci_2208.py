@@ -11,10 +11,10 @@ standard-Zauner reconstruction. CRT factors of the Fibonacci antiunitary give 96
 coordinates; both even-dimensional alignment relations give 118 quadratic constraints.
 Projected L-BFGS with least-squares retraction minimizes the full SIC loss. FFT rows
 replace the dense overlap arrays of search.py/refine.py at this dimension. No cached
-basis, checkpoint, or previous trial is read. Seed 2348 supplies ambient complex
+basis, checkpoint, or previous trial is read. The seed in representatives.toml supplies ambient complex
 vectors, projected onto the fixed space; trials run in order until the first SIC.
 Internal orthonormal coordinates do not select the start. BLAS and FFT calls use
-one thread to limit resource use. refine_2208.py supplies the 150 digits.
+one thread to limit resource use. refine_large.py supplies the 150 digits.
 
 fiducial_48g.txt is fetched separately from Grassl--Scott's source supplement at
 https://arxiv.org/src/1707.02944v2 (SHA-256 below). The alignment relations are Eqs.15--16
@@ -29,6 +29,7 @@ import io
 import os
 from pathlib import Path
 import tarfile
+import tomllib
 from urllib.request import urlopen
 
 # Limit resource use before loading the numerical libraries.
@@ -322,7 +323,8 @@ def main() -> None:
         with urlopen(INPUT_URL, timeout=60) as response:
             fetch_input(input_path, response.read())
     model = Alignment(input_path)
-    rng = np.random.default_rng(2348)
+    choices = tomllib.loads(Path(__file__).with_name("representatives.toml").read_text(encoding="utf-8"))
+    rng = np.random.default_rng(choices["2208"]["fibonacci_seed"])
     for trial in range(100):
         ambient = rng.normal(size=D) + 1j * rng.normal(size=D)
         start = (model.b.conj().T @ ambient).real
