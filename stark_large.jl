@@ -1,46 +1,40 @@
-# General companion-form Stark/cocycle construction, followed by streamed FFT
-# reconstruction. Run: julia --project=. --threads=1 stark_large.jl DIMENSION
-# Then: uv run refine_large.py fiducial_DIMENSION_stark.txt --output FILE
+# Build a companion-form SIC seed by the Stark-unit method of stark.jl.
+# Run: julia --project=. --threads=1 stark_large.jl DIMENSION [BITS=2048]
 #
-# Canonical rule for dimensions without a representative pin:
-# * Choose the least b>=3 with b^2-4=D*q^2, q|f, and standard-Zauner symmetry,
-#   where (d+1)(d-3)=D*f^2. The form is <1,-b,1>; b=d-1 always qualifies
-#   for d>=4. Its conductor can exceed stark.jl's choice (e.g. d=206 or 199).
-# * Work modulo d for odd d, 2d for even d. Quotient by the FULL overlap
-#   stabilizer, including a negative-norm unit when present (no conjugation).
-# * Prime-power quotient axes: increasing prime, decreasing exponent; for each
-#   axis choose the first (a,y) in lexicographic residue order for a*I+y*L
-#   having that order both before and after quotienting by previous axes.
-# * Normal-basis recipes: linear, shifted quadratic, squared quadratic, with
-#   shifts enumerated by Zauner.radix, last index fastest; Fourier coefficients
-#   must exceed 2^-128.
-# * Conjugation maximizes sigma(sum(u^2)), as stark.jl. Each multiplication
-#   matrix uses the root with smallest (Re,Im), rounded to 10 decimal places;
-#   a collision between distinct roots fails rather than choosing an eigenbasis.
-# * First trace-minus-one power of L, then first lexicographic (a,b) with
-#   det([v,Kv])=1, defines the standard-Zauner map. Reconstruction ranks fits
-#   rounded to 10 decimal places, then column-major shift index; the first
-#   converging determinant class wins. Power iteration starts from e_0.
-# * representatives.toml pins representatives from an unpublished prototype run
-#   so its Mac runs and the Linux rebuilds compare byte for byte. Their quotient
-#   coordinates came from Hecke, not an arithmetic rule derived from d. The table
-#   pins integer generators and determinant shifts tied at roundoff; construction
-#   retains the prototype's start rule. It also pins the separate Fibonacci
-#   search's random seed, never a saved numerical vector. Every published large-d
-#   file uses pinned data; test_large.py tests the canonical rule only at small d.
+# To keep large d tractable, factor the cocycle along the label orbit, use FLINT
+# FFT residuals with a frozen Float64 QR, and stream units and normal-basis traces.
+# Refine the conjugate basis in BigFloat: Float64 traces lose digits when the
+# final tensor contraction cancels. reconstruct_large.py avoids a dense projector;
+# refine_large.py supplies the published precision. Their headers give the methods.
 #
-# The cocycle is factored along L's label orbit; ghost residuals and unit rows
-# use FLINT FFTs. A frozen Float64 QR corrects the full-precision ghost.
-# Normal-basis traces stream along tensor axes. Python reconstruction stores
-# owner/sign maps on disk, avoiding complex d-by-d arrays. Final refinement is
-# full-space at 640 bits, without a Float64 invariant-space constraint.
-# Checkpoints bind source, dimension and precision; use a fresh directory after
-# changing precision, source, Julia or platform. Rebuild evidence is in RESULTS.md.
+# Canonical choices for dimensions without a representatives.toml pin:
+# * For (d+1)(d-3)=D*f^2, take the least b>=3 with b^2-4=D*q^2, q|f, and
+#   standard-Zauner symmetry. The form <1,-b,1> always exists at b=d-1;
+#   its conductor can exceed stark.jl's unrestricted choice.
+# * Labels are modulo d (odd d) or 2d (even d). Quotient by the full overlap
+#   stabilizer, including a negative-norm unit when present, without conjugation.
+# * Axes use increasing prime, decreasing exponent. Choose the first residue
+#   pair (a,y) lexicographically for a*I+y*L with that prime-power order both
+#   before and after quotienting by previous axes.
+# * Try linear, shifted quadratic, then squared quadratic normal bases.
+#   Zauner.radix enumerates shifts last index fastest; Fourier moduli exceed 2^-128.
+# * As in stark.jl, maximize sigma(sum(u^2)). Choose each multiplication root
+#   by its smallest (Re,Im) rounded to 10 decimals; fail on a tie.
+# * The first trace-minus-one power K of L and first lexicographic v=(a,b)
+#   with det([v,Kv])=1 give the standard-Zauner map. Rank reconstruction fits
+#   rounded to 10 decimals, then column-major shift index; take the first
+#   converging determinant class. Power iteration starts from e_0.
+#
+# All three published standard-Zauner large-d files retain prototype quotient
+# coordinates, determinant shifts and the legacy start rule. The table explains
+# those pins; test_large.py tests the unpinned rule at small d.
 
 const cli_args = copy(ARGS)
 empty!(ARGS)
 include("stark.jl")
 using TOML, SHA
+import Nemo
+using Nemo: AcbField, acb_struct
 
 const REPRESENTATIVES = TOML.parsefile(joinpath(@__DIR__, "representatives.toml"))
 
@@ -132,23 +126,13 @@ function orbit_shin(F, p1, p2)
     val
 end
 
-function ghost_nu(F,p1,p2; reduced=true)
+function ghost_nu(F,p1,p2)
     d,A,β = Int(F.d),F.A,F.x
     QA = QuadBin(A[2,1],A[2,2]-A[1,1],-A[1,2])
     ζ = -cispi(BigFloat(1)/d)
     c = -e(-BigFloat(rademacher(A))/24)/sqrt(BigFloat(d+1))
     s = iseven(d)*(p1+p2+p1*p2)
-    if reduced
-        sh = orbit_shin(F,p1,p2)
-    else
-        v = Zauner._get_periods(A,β)
-        k = Int(divexact(A[1,2]*p2-(A[2,2]-1)*p1,d))
-        sh = sigma((p2*β-p1)/d+k,β)
-        for i in 2:length(v)-2
-            sh *= sigma((v[1]*p2-v[2]*p1)/(d*v[i+1]),v[i]/v[i+1])
-        end
-    end
-    (-1)^s * ζ^(-BigFloat(QA(p1,p2))/(d*(d-2))) * c * sh
+    (-1)^s * ζ^(-BigFloat(QA(p1,p2))/(d*(d-2))) * c * orbit_shin(F,p1,p2)
 end
 
 function cocycle_ghost(F)
@@ -167,9 +151,6 @@ function cocycle_ghost(F)
     ψ = sqrt(abs(χ[1,1]))*circshift(cumprod(χ[:,2]./χ[:,1]),1)
     ψ/ψ[1]
 end
-
-import Nemo
-using Nemo: AcbField, acb_struct
 
 "Numerical DFT through the installed FLINT C API; return ball midpoints."
 function flint_dft(x::Vector{Complex{BigFloat}};inverse=false)
@@ -191,8 +172,6 @@ function flint_dft(x::Vector{Complex{BigFloat}};inverse=false)
     [complex(BigFloat(real(z)),BigFloat(imag(z))) for z in vals]
 end
 
-
-using GenericFFT: fft, ifft
 
 "Quartic ghost residuals by four circular correlations instead of d sums per row."
 function ghost_residual_fft(z,ns)
@@ -218,7 +197,7 @@ Scale residuals before conversion to avoid underflow. No inexact symmetry basis
 constrains the final vector. Abort if the residual fails to halve at a step;
 the Jacobian is not refreshed.
 """
-function bump_float(ψ,bits;name="ghost",maxsteps=100)
+function refine_ghost(ψ,bits)
     setprecision(BigFloat,bits) do
         z = BigFloat.(re_im_proj(ψ))
         ns = equations(length(ψ))
@@ -229,12 +208,13 @@ function bump_float(ψ,bits;name="ghost",maxsteps=100)
         println("QR seconds=$t diagonal_ratio=$(minimum(diagonal)/maximum(diagonal))")
         flush(stdout)
         prev = big(Inf)
+        maxsteps=max(100,bits÷20)
         for iter in 0:maxsteps
             t = @elapsed r=ghost_residual_fft(z,ns)
             res = maximum(abs,r)
             println("bump iter=$iter bits=$bits residual=$(Float64(log2(res))) log2 seconds=$t")
             flush(stdout)
-            path="data/$(name)_$(bits)_progress.jls"
+            path="data/ghost_$(bits)_progress.jls"
             serialize(path*".part",re_im_proj(z))
             mv(path*".part",path;force=true)
             if res < big(2.0)^(-bits+40)
@@ -251,7 +231,7 @@ function bump_float(ψ,bits;name="ghost",maxsteps=100)
 end
 
 "Selected real ghost overlaps, one FLINT transform per row; discard unused entries."
-function ghost_units_stream(ψ,P;checkpoint_dir="",chunk_rows=32,worker=0,workers=1,assemble=true)
+function ghost_units_stream(ψ,P,checkpoint_dir)
     d=length(ψ)
     φ=circshift(reverse(ψ),1)
     normfactor=(d+1)/real(φ'ψ)
@@ -260,16 +240,11 @@ function ghost_units_stream(ψ,P;checkpoint_dir="",chunk_rows=32,worker=0,worker
     for (i,(a,b)) in enumerate(P)
         push!(rows[mod(a,d)+1],i)
     end
-    isempty(checkpoint_dir) || mkpath(checkpoint_dir)
-    0<=worker<workers || error("invalid row worker")
-    workers>1 && isempty(checkpoint_dir) && error("parallel row workers need checkpoints")
-    u=isempty(checkpoint_dir) ? Array{BigFloat}(undef,size(P)) : nothing
-    for firstrow in worker*chunk_rows:workers*chunk_rows:d-1
-        lastrow=min(d-1,firstrow+chunk_rows-1)
+    mkpath(checkpoint_dir)
+    for firstrow in 0:32:d-1
+        lastrow=min(d-1,firstrow+31)
         path=joinpath(checkpoint_dir,"rows_$(firstrow)_$(lastrow).jls")
-        if !isempty(checkpoint_dir) && isfile(path)
-            continue
-        end
+        isfile(path) && continue
         indices=Int[]
         values=BigFloat[]
         for a in firstrow:lastrow
@@ -282,23 +257,15 @@ function ghost_units_stream(ψ,P;checkpoint_dir="",chunk_rows=32,worker=0,worker
             end
             append!(indices,rows[a+1])
         end
-        if !isempty(checkpoint_dir)
-            serialize(path*".part",(indices,values))
-            mv(path*".part",path;force=true)
-        else
-            u[indices]=values
-        end
+        save_atomic(path,(indices,values))
         println("ghost overlap rows=$firstrow:$lastrow/$d")
         flush(stdout)
     end
-    assemble || return nothing
-    if !isempty(checkpoint_dir)
-        u=Array{BigFloat}(undef,size(P))
-        for firstrow in 0:chunk_rows:d-1
-            lastrow=min(d-1,firstrow+chunk_rows-1)
-            indices,values=deserialize(joinpath(checkpoint_dir,"rows_$(firstrow)_$(lastrow).jls"))
-            u[indices]=values
-        end
+    u=Array{BigFloat}(undef,size(P))
+    for firstrow in 0:32:d-1
+        lastrow=min(d-1,firstrow+31)
+        indices,values=deserialize(joinpath(checkpoint_dir,"rows_$(firstrow)_$(lastrow).jls"))
+        u[indices]=values
     end
     return u
 end
@@ -369,24 +336,40 @@ function trace_product(u,x,prefix)
     T
 end
 
-"Reuse trace forms; conjugate directly without a third large BigFloat tensor."
+"Keep guard bits through the ill-conditioned live-basis tensor contraction."
 function conjugate_units(σ,trace,forms_x)
-    y=Vector{Vector{ComplexF64}}()
+    y=Vector{Vector{Complex{BigFloat}}}()
     for pair in forms_x
         G,C=(X->σ.(X)).(pair)
-        # The caller retries the integer relation at higher precision. Returning
-        # nothing records an unsuccessful precision attempt, never a candidate.
+        # A failed relation or basis check asks the caller for more precision.
         issuccess(lu(G;check=false)) || return nothing
-        A=Float64.(C/G)
-        all(isfinite,A) || return nothing
-        λ,V=eigen(A)
+        A=C/G
+        A64=Float64.(A)
+        all(isfinite,A64) || return nothing
+        λ,V=eigen(A64)
         keys=[(round(real(z);digits=10),round(imag(z);digits=10)) for z in λ]
         allunique(keys) || error("multiplication roots tie at 10 decimals")
         index=argmin(keys)
-        push!(y,ComplexF64.(G)\(V[:,index]*λ[index]/V[1,index]))
+        # Preserve the original root; refine the eigenvector with z[1]=λ.
+        z=Complex{BigFloat}.(V[:,index]*λ[index]/V[1,index])
+        for _ in 1:5
+            residual=A*z-z[1]*z
+            jacobian=complex.(A)-z[1]*I
+            jacobian[:,1]-=z
+            z-=jacobian\residual
+        end
+        Gz,Cz=forms(z)
+        tolerance=big(2.0)^(-96)
+        max(norm(Gz-G)/norm(G),norm(Cz-C)/norm(C))<tolerance || return nothing
+        push!(y,G\z)
     end
-    transformed=map(v->ComplexF64(σ(v)),trace)
-    hankel_prod(transformed,y)
+    # Recognition must retain the caller's working precision. Only its result
+    # is rounded; lowering precision around σ itself corrupts integer rounding.
+    transformed=map(v->BigFloat(σ(v);precision=128),trace)
+    live=setprecision(BigFloat,128) do
+        hankel_prod(transformed,y)
+    end
+    ComplexF64.(live)
 end
 
 function generator_orbit(F,mats,ords)
@@ -447,8 +430,6 @@ function power_mod_matrix(M,n,dd)
     end
     R
 end
-
-using GenericFFT: fft, ifft
 
 function standard_map(F)
     d=Int(F.d); dd=2^iseven(d)*d
@@ -516,11 +497,11 @@ function run_construct(d,bits)
         else
             start=initial
         end
-        bump_float(start,bits;name="ghost",maxsteps=max(100,bits÷20))
+        refine_ghost(start,bits)
     end
     setprecision(BigFloat,bits) do
         u=stage("units_$bits") do
-            ghost_units_stream(ψ,P;checkpoint_dir="units_$(bits)_rows")
+            ghost_units_stream(ψ,P,"units_$(bits)_rows")
         end
         recipes=stage("recipes_$bits") do
             normal_recipes(u,d)
@@ -539,13 +520,18 @@ function run_construct(d,bits)
         println("PRECISION relation_bits=$relation_bits working_bits=$bits unit_max_log2=$(Float64(log2(maximum(abs,u))))")
         flush(stdout)
         1.5relation_bits+100<bits || error("Need more ghost precision: rerun with at least $(ceil(Int,1.5relation_bits+200)) bits")
-        H=stage("classfield") do
-            classfield(F)
-        end
+        s=sum(abs2,u)
+        u=nothing
+        GC.gc()
+        # Hecke's embedding caches contain process-local C state. Rebuild this
+        # small object; Julia serialization is safe for the numerical tensors.
+        H=classfield(F)
         uu=nothing
+        # Relative squared-modulus guard, with room for the final Float64 rounding.
+        modulus_tolerance=64eps(Float64)*(d+1)
         for b in unique(min.(round.(Int,relation_bits.*1.5.^(0:3)),bits-100))
             uu=stage("liveunits_$(bits)_$b") do
-                conjugate_units(conjugator(H,F,b,sum(abs2,u)),trace,forms_x)
+                conjugate_units(conjugator(H,F,b,s),trace,forms_x)
             end
             if uu===nothing
                 println("CONJUGATION bits=$b insufficient relation precision; advancing precision")
@@ -554,9 +540,9 @@ function run_construct(d,bits)
             end
             err=maximum(abs,abs2.(uu).-(d+1))
             println("CONJUGATION bits=$b modulus_error=$err"); flush(stdout)
-            err<1e-3 && break
+            err<modulus_tolerance && break
         end
-        uu!==nothing && maximum(abs,abs2.(uu).-(d+1))<1e-3 || error("Conjugation modulus check failed")
+        uu!==nothing && maximum(abs,abs2.(uu).-(d+1))<modulus_tolerance || error("Conjugation modulus check failed")
         export_dir="export"
         mkpath(export_dir)
         write(joinpath(export_dir,"units.bin"),vec(uu))

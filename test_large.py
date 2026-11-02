@@ -9,7 +9,9 @@ uv run test_large.py --work /absolute/path/outside/repo
 Requires Julia on PATH and the repository's Julia/Python packages installed.
 Runs fresh d=19 (odd, q=1) and d=48 (even, q=3), verifies their saved digits
 independently, then exercises the Modal worker's actual logic with interruption,
-continuation, fresh construction and committed-hash comparison. No large-d work.
+continuation, fresh construction and committed-hash comparison. Interrupt a
+two-worker refinement after a gradient shard saves numerical progress, resume
+it, and compare all output bytes with the uninterrupted single-worker result.
 """
 
 import argparse
@@ -18,7 +20,9 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
+import time
 
 from modal_rebuild import COPY_IGNORE, commands_for, rebuild_file, run_command
 
@@ -30,6 +34,43 @@ def checked(command: list[str], cwd: Path, environment: dict[str, str], log: Pat
     with log.open("wb") as stream:
         subprocess.run(command, cwd=cwd, env=environment, stdout=stream,
                        stderr=subprocess.STDOUT, check=True)
+
+
+def resume_refinement(fixture: Path, work: Path, environment: dict[str, str]) -> dict:
+    work.mkdir()
+    output = work / "fiducial_48.txt"
+    checkpoint = work / "state"
+    command = ["uv", "run", "refine_large.py", "fiducial_48_stark.txt", "--output", str(output),
+               "--work", str(checkpoint), "--workers", "2", "--checkpoint-rows", "1"]
+    with (work / "interrupted.log").open("wb") as log:
+        child = subprocess.Popen(command, cwd=fixture, env=environment, stdout=log,
+                                 stderr=subprocess.STDOUT, start_new_session=True)
+        deadline = time.monotonic() + 120
+        try:
+            while True:
+                assert child.poll() is None, "Refinement finished before the checkpoint interruption"
+                assert time.monotonic() < deadline, "No numerical checkpoint within 120 seconds"
+                for path in checkpoint.glob("step*.part*.json"):
+                    saved = json.loads(path.read_text())
+                    if saved["next_row"] > saved["identity"]["first"]:
+                        os.killpg(child.pid, signal.SIGSTOP)
+                        progress = {"shard": path.name, "next_row": saved["next_row"],
+                                    "first_row": saved["identity"]["first"]}
+                        break
+                else:
+                    time.sleep(0.001)
+                    continue
+                break
+        finally:
+            if child.poll() is None:
+                os.killpg(child.pid, signal.SIGTERM)
+                os.killpg(child.pid, signal.SIGCONT)
+                child.wait(timeout=10)
+    checked(command, fixture, environment, work / "resumed.log")
+    assert output.read_bytes() == (fixture / "fiducials/fiducial_48.txt").read_bytes()
+    assert not list(checkpoint.glob("step*.part*.json")), "Merged shards were retained"
+    assert '"event": "resume"' in (work / "resumed.log").read_text()
+    return progress
 
 
 def main() -> None:
@@ -66,6 +107,9 @@ def main() -> None:
                                 lambda: None, workers=2, timed=False)
         assert repeated["status"] == "BYTE_IDENTICAL", repeated
         results[str(d)] = state
+    progress = resume_refinement(fixture, work / "refinement_resume", environment)
+    assert all(path.suffix == ".txt" for folder in ("fiducials", "fibonacci")
+               for path in (fixture / folder).iterdir()), "Refinement artifacts in published folders"
     # A wrong expected hash must produce DIFFERENT, never successful acceptance.
     destination = work / "rebuild_19"
     path = destination / "result.json"
@@ -85,8 +129,9 @@ def main() -> None:
             continue
         raise AssertionError(f"Accepted invalid rebuild target: {invalid}")
     (work / "acceptance.json").write_text(json.dumps({"status": "PASS", "results": results,
+                                                     "numerical_interruption": progress,
                                                      "negative_controls": "PASS"}, indent=2) + "\n")
-    print("PASS: fresh d=19 and q=3 d=48, precise verification, two-worker byte equality, restart and negative controls")
+    print("PASS: d=19 and q=3 d=48, precise verification, real-checkpoint resume, byte equality and negative controls")
 
 
 if __name__ == "__main__":

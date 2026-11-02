@@ -4,22 +4,16 @@
 # [tool.uv]
 # exclude-newer = "2026-10-19T00:00:00Z"
 # ///
-"""640-bit numerical SIC refinement with automatic atomic restart checkpoints.
+"""Refine a near-SIC to 150 digits by full-space 640-bit Gauss--Newton.
 
-FLINT FFTs stream over one representative of the conjugate displacement pairs.
-The double-precision normal operator stays anchored to the ORIGINAL input file;
-only its phase null direction is lifted. The input must already be near a SIC.
-No double-precision invariant basis constrains the high-precision answer.
+Unlike refine.py's dense matrices, FFT rows give the gradient and a conjugate-
+gradient solve applies the fixed Float64 normal operator. Only its phase null
+direction is lifted; no inexact symmetry basis constrains the final vector.
+Gradient workers use one BLAS/FFT thread each; the normal solve is serial.
 
-Checkpoints store exact binary midpoints, never normalized decimal exports.
-They retain gradient row progress and CG approximations. With --workers 2..8,
-independent gradient shards run in separate processes and checkpoint separately.
-The normal solve is serial. All BLAS/FFT thread counts must be one per process
-(this script sets these). Final files require an independent all-overlap and
-symmetry check (standard Zauner or Fibonacci, according to the output folder).
-This is numerical refinement. All published large-d inputs select representatives
-from an unpublished prototype run via representatives.toml, retained so its Mac
-runs and Linux rebuilds compare byte for byte.
+The work directory holds the log and atomic checkpoints of binary midpoints,
+including partial gradient rows and CG iterates. Merged shards are removed only
+after their sum is saved. verify.py independently checks the exported decimals.
 """
 
 import argparse
@@ -245,14 +239,12 @@ def main():
     parser.add_argument("--steps", type=int, default=22, help="Total iteration limit, including resumed ones")
     parser.add_argument("--bits", type=int, default=640)
     parser.add_argument("--workers", type=int, default=1, help="Gradient workers (1..8); CG stays single-core")
-    parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument("--work", type=Path, help="Directory for log, checkpoints and gradient shards")
     parser.add_argument("--checkpoint-rows", type=int, default=64)
     parser.add_argument("--checkpoint-cg-iterations", type=int, default=16)
-    parser.add_argument("--benchmark", action="store_true")
-    parser.add_argument("--benchmark-rows", type=int, default=16)
     args = parser.parse_args()
     if args.bits < 640 or not 1 <= args.workers <= 8 or min(
-            args.steps, args.checkpoint_rows, args.checkpoint_cg_iterations, args.benchmark_rows) < 1:
+            args.steps, args.checkpoint_rows, args.checkpoint_cg_iterations) < 1:
         parser.error("Use at least 640 bits, 1..8 workers and positive iteration/row counts")
     if args.file.resolve() == args.output.resolve():
         parser.error("Input and output must differ; input anchors the normal operator")
@@ -260,17 +252,9 @@ def main():
     ctx.threads = 1
     psi = read_hp(args.file)
     d = len(psi)
-    if args.benchmark:
-        start = time.perf_counter()
-        _, worst, norm = hp_gradient(psi, args.benchmark_rows)
-        print(json.dumps({"rows": min(args.benchmark_rows, d//2+1), "d": d,
-                          "bits": args.bits, "seconds": time.perf_counter()-start,
-                          "error": float(worst), "norm_error": float(norm),
-                          "peak_rss_bytes": peak_rss_bytes()}), flush=True)
-        return
-    checkpoint_path = args.checkpoint or args.output.with_suffix(".checkpoint.json")
-    if checkpoint_path.resolve() in (args.file.resolve(), args.output.resolve()):
-        parser.error("Checkpoint must differ from input and output")
+    work = args.work or Path(os.environ.get("LARGE_D_WORK", f"large_d_work/d{d}")) / ("refine_" + args.file.stem)
+    work.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = work / "checkpoint.json"
     identity = {"input_sha256": hashlib.sha256(args.file.read_bytes()).hexdigest(),
                 "bits": args.bits, "d": d, "workers": min(args.workers, d//2+1),
                 "code_sha256": hashlib.sha256(Path(__file__).read_bytes()
@@ -304,7 +288,7 @@ def main():
         return np.concatenate([z.real, z.imag]) + phase*np.dot(phase, x)
 
     operator = LinearOperator((2*d, 2*d), matvec=normal, dtype=np.float64)
-    log = args.output.with_suffix(".jsonl")
+    log = work / "refinement.jsonl"
     for step in range(state["step"], args.steps):
         gradient = None if state["gradient"] is None else unpack_vector(state["gradient"])
         if state["phase"] == "gradient":
@@ -325,11 +309,11 @@ def main():
                 count = identity["workers"]
                 rows = d//2 + 1
                 packed = state["psi"]
+                shard_paths = [work / f"step{step}.part{k}.json" for k in range(count)]
                 context = multiprocessing.get_context("spawn")
                 with ProcessPoolExecutor(max_workers=count, mp_context=context) as pool:
                     jobs = [pool.submit(gradient_shard, packed, identity, rows*k//count, rows*(k+1)//count,
-                                        str(checkpoint_path.with_name(checkpoint_path.name
-                                            + f".step{step}.part{k}.json")), args.checkpoint_rows)
+                                        str(shard_paths[k]), args.checkpoint_rows)
                             for k in range(count)]
                     parts = [job.result() for job in jobs]
                 gradient, error = merge_gradient_shards(parts, identity, packed)
@@ -339,6 +323,8 @@ def main():
                          norm_error=pack_real(norm_error), next_row=d//2+1,
                          gradient_seconds=prior_seconds + time.perf_counter()-start)
             save_state(checkpoint_path, state)
+        for path in work.glob(f"step{step}.part*.json"):
+            path.unlink()
         error = unpack_real(state["worst"])
         norm_error = unpack_real(state["norm_error"])
         row = {"step": step, "bits": ctx.prec, "max_error": float(error),

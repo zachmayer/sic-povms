@@ -1,10 +1,8 @@
-"""Run search.py on many cloud cores with Modal (https://modal.com). Needs a Modal account.
+"""Run independent single-core SIC searches in Modal containers.
 
-  uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
+uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
 
-Each container runs one single-threaded search per core, each with its own seed and stopping at
-its first SIC, which is written here as fiducial_<d>_seed<seed>_trial<trial>.txt. The search that
-found fiducial_198.txt was this size: 25 containers of 32 cores for an hour.
+Each search stops at its first SIC; the entrypoint saves its seed locally.
 """
 
 import multiprocessing

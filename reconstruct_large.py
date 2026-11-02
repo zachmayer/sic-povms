@@ -1,47 +1,39 @@
 # /// script
 # requires-python = "==3.13.*"
-# dependencies = ["numpy==2.5.4", "scipy==1.18.1", "python-flint==0.9.0"]
+# dependencies = ["numpy==2.5.4", "scipy==1.18.1"]
 # [tool.uv]
 # exclude-newer = "2026-10-19T00:00:00Z"
 # ///
-"""Stream partial-projector SIC reconstruction without dense matrices.
+"""Recover a SIC seed from stark_large.jl's conjugated orbit of overlaps.
 
-The input directory contains metadata.json, complex128 units.bin in Julia/F
-order, and int64 labels.bin as N consecutive (p1,p2) pairs. Metadata explicitly
-provides d, axes, q_b, stabilizers (flat row-major 2x2), and standard_map.
-Owner/sign maps cost 5*d*d bytes on disk and are memory mapped. No complex d*d
-array is allocated. Every completed owner chunk, fit batch, eigen iteration,
-and alternating-projection iteration can resume after interruption.
+Unlike stark.jl's dense projector, FFT rows apply the partial projector to a
+vector. Power iteration seeks a dominant positive eigenvalue; alternating
+projections complete the missing overlaps. Rejecting other eigenpairs is a
+search heuristic, not a proof that the corresponding shift cannot give a SIC.
 
-The default power iteration uses the largest-magnitude eigenpair. A genuine
-partial rank-one projector is expected to have a dominant positive eigenvalue;
-negative candidates are rejected. This expectation is a numerical search
-heuristic, not a proof that all unsuccessful shifts can be excluded.
-
-For every published standard-Zauner large-d file, metadata selects the quotient
-coordinates, determinant shift and start rule of an unpublished prototype run.
-representatives.toml pins those choices so its Mac runs and Linux rebuilds
-compare byte for byte. test_large.py exercises the canonical rule only at small d.
+Read metadata.json, ComplexF64 units.bin in Julia order, and Int64 label pairs.
+The owner/sign maps use 5*d*d memory-mapped bytes. Each numerical stage resumes
+from atomic files under --work. Representative choices are in the Julia header.
 """
 
 import argparse
 import cmath
+from fractions import Fraction
 import hashlib
 import json
+import os
 from pathlib import Path
 import resource
 import sys
 import time
 
-import os
 for variable in ("OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ[variable] = "1"
 
 import numpy as np
-from scipy.sparse.linalg import LinearOperator, eigsh
 
 from search import fiducial_text
-from fractions import Fraction
+
 
 def write_fiducial(path: Path, psi: np.ndarray) -> None:
     psi = psi / np.linalg.norm(psi)
@@ -127,7 +119,6 @@ def add_projector_rows(output: np.ndarray, vector: np.ndarray, shifts: np.ndarra
 
 class Reconstruction:
     def __init__(self, args: argparse.Namespace) -> None:
-        self.args = args
         self.work = args.work
         self.work.mkdir(parents=True, exist_ok=True)
         metadata_path = args.export/"metadata.json"
@@ -144,12 +135,7 @@ class Reconstruction:
         self.configuration = {"metadata_sha256": digest(metadata_path),
                               "units_sha256": digest(args.export/"units.bin"),
                               "labels_sha256": digest(args.export/"labels.bin"),
-                              "script_sha256": hashlib.sha256(Path(__file__).read_bytes()+Path(__file__).with_name("search.py").read_bytes()).hexdigest(),
-                              "eigen_method": args.eigen_method,
-                              "eigen_tolerance": args.eigen_tolerance,
-                              "eigen_steps": args.eigen_steps,
-                              "completion_steps": args.completion_steps,
-                              "tolerance": args.tolerance}
+                              "script_sha256": hashlib.sha256(Path(__file__).read_bytes()+Path(__file__).with_name("search.py").read_bytes()).hexdigest()}
         manifest = self.work/"configuration.json"
         if manifest.exists():
             if json.loads(manifest.read_text()) != self.configuration:
@@ -173,8 +159,8 @@ class Reconstruction:
         matrices = [(transform @ np.asarray(s, dtype=np.int64).reshape(2, 2)) % self.dd
                     for s in self.metadata["stabilizers"]]
         started = time.perf_counter()
-        for start in range(state["next_group"], self.size, self.args.owner_chunk):
-            stop = min(start+self.args.owner_chunk, self.size)
+        for start in range(state["next_group"], self.size, 262144):
+            stop = min(start+262144, self.size)
             labels = self.labels[start:stop]
             owners = np.arange(start+1, stop+1, dtype=np.int32)
             for matrix in matrices:
@@ -199,8 +185,8 @@ class Reconstruction:
             return np.load(output)
         first = np.full(self.dd, self.size, dtype=np.int64)
         qb = int(self.metadata["q_b"])
-        for start in range(0, self.size, self.args.owner_chunk):
-            stop = min(start+self.args.owner_chunk, self.size)
+        for start in range(0, self.size, 262144):
+            stop = min(start+262144, self.size)
             labels = self.labels[start:stop]
             a = (labels[:, 0]+qb*labels[:, 1]) % self.dd
             b = labels[:, 1]
@@ -231,8 +217,8 @@ class Reconstruction:
         fits = np.load(path) if path.exists() else np.full(len(self.shifts), np.nan)
         tau = chirp(self.d, np.array([0, 1]))/(self.d+1)
         started = time.perf_counter()
-        for start in range(state["next_shift"], len(self.shifts), self.args.shift_batch):
-            stop = min(start+self.args.shift_batch, len(self.shifts))
+        for start in range(state["next_shift"], len(self.shifts), 128):
+            stop = min(start+128, len(self.shifts))
             shifts = self.shifts[start:stop, None]
             diagonal = np.fft.ifft(self.sign[0, :]*self.shifted_units(self.owner[0, :], shifts)*tau[0], axis=1)
             diagonal = 1/self.d+diagonal.real
@@ -246,8 +232,8 @@ class Reconstruction:
         return fits
 
     def batches(self):
-        for start in range(0, self.d, self.args.row_batch):
-            yield np.arange(start, min(start+self.args.row_batch, self.d), dtype=np.int64)
+        for start in range(0, self.d, 16):
+            yield np.arange(start, min(start+16, self.d), dtype=np.int64)
 
     def partial_action(self, vector: np.ndarray, shift: int) -> np.ndarray:
         output = vector/self.d
@@ -313,31 +299,22 @@ class Reconstruction:
                 vector = np.load(self.work/state["vector_file"])
             emit("shift_trial", trial=trial+1, selected=selected, group_shift=shift, fit=float(fits[selected]))
             if state["stage"] == "eigen":
-                if self.args.eigen_method == "eigsh":
-                    operator = LinearOperator((self.d, self.d), matvec=lambda v: self.partial_action(v, shift), dtype=np.complex128)
-                    values, vectors = eigsh(operator, k=1, which="LA", v0=vector,
-                                            tol=self.args.eigen_tolerance, maxiter=self.args.eigen_steps)
-                    vector = normalized(vectors[:, 0])
+                residual = float("inf")
+                eigenvalue = 0.0
+                for iteration in range(state["iteration"], 100):
+                    started = time.perf_counter()
                     image = self.partial_action(vector, shift)
-                    eigenvalue = float(values[0])
+                    eigenvalue = float(np.vdot(vector, image).real)
                     residual = float(np.linalg.norm(image-eigenvalue*vector))
-                else:
-                    residual = float("inf")
-                    eigenvalue = 0.0
-                    for iteration in range(state["iteration"], self.args.eigen_steps):
-                        started = time.perf_counter()
-                        image = self.partial_action(vector, shift)
-                        eigenvalue = float(np.vdot(vector, image).real)
-                        residual = float(np.linalg.norm(image-eigenvalue*vector))
-                        emit("eigen_iteration", trial=trial+1, iteration=iteration,
-                             eigenvalue=eigenvalue, residual=residual, seconds=time.perf_counter()-started)
-                        if residual < self.args.eigen_tolerance:
-                            break
-                        vector = normalized(image)
-                        state["iteration"] = iteration+1
-                        self.checkpoint(state, vector)
+                    emit("eigen_iteration", trial=trial+1, iteration=iteration,
+                         eigenvalue=eigenvalue, residual=residual, seconds=time.perf_counter()-started)
+                    if residual < 1e-10:
+                        break
+                    vector = normalized(image)
+                    state["iteration"] = iteration+1
+                    self.checkpoint(state, vector)
                 emit("eigen_complete", trial=trial+1, eigenvalue=eigenvalue, residual=residual, threshold=threshold)
-                if residual >= self.args.eigen_tolerance or eigenvalue <= threshold:
+                if residual >= 1e-10 or eigenvalue <= threshold:
                     state = {"trial": trial+1, "stage": "new"}
                     save_json(progress, state)
                     continue
@@ -346,12 +323,12 @@ class Reconstruction:
                 state.update(stage="completion", iteration=0, eigenvalue=eigenvalue,
                              eigen_residual=residual, zauner_mode=mode)
                 self.checkpoint(state, vector)
-            for iteration in range(state["iteration"], self.args.completion_steps):
+            for iteration in range(state["iteration"], 250):
                 started = time.perf_counter()
                 error, fixed, free = self.completion_action(vector, shift)
                 emit("completion_iteration", trial=trial+1, iteration=iteration, error=error,
                      seconds=time.perf_counter()-started)
-                if error < self.args.tolerance:
+                if error < 1e-13:
                     state.update(stage="complete", max_overlap_error=error)
                     self.checkpoint(state, vector)
                     return vector
@@ -363,57 +340,12 @@ class Reconstruction:
         raise ArithmeticError("No tested determinant representative produced a numerical SIC")
 
 
-def self_test() -> None:
-    rng = np.random.default_rng(39604)
-    maximum = 0.0
-    for d in (3, 4, 8, 13):
-        w = rng.standard_normal((d, d))+1j*rng.standard_normal((d, d))
-        vector = normalized(rng.standard_normal(d)+1j*rng.standard_normal(d))
-        shifts = np.arange(d, dtype=np.int64)
-        rows = np.fft.ifft(w*chirp(d, shifts), axis=1)/(d+1)
-        matrix = np.array([[rows[(j-k) % d, k]+(j == k)/d for k in range(d)] for j in range(d)])
-        matrix = (matrix+matrix.conj().T)/2
-        image = vector/d
-        for start in range(0, d, 3):
-            add_projector_rows(image, vector, shifts[start:start+3], rows[start:start+3])
-        error = float(np.max(np.abs(image-matrix@vector)))
-        if error > 2e-14:
-            raise ArithmeticError(f"Explicit projector mismatch at d={d}: {error}")
-        maximum = max(maximum, error)
-        for mode in range(3):
-            lam = cmath.exp(2j*np.pi*mode/3)
-            raw = vector+lam.conjugate()*zauner(vector)+lam.conjugate()**2*zauner(zauner(vector))
-            if np.linalg.norm(raw) < 1e-12:
-                continue  # Some dimensions have a zero-dimensional Zauner eigenspace.
-            projected = symmetry_project(vector, mode)
-            residual = np.max(np.abs(zauner(projected)-cmath.exp(2j*np.pi*mode/3)*projected))
-            if residual > 2e-13:
-                raise ArithmeticError(f"Zauner projection mismatch at d={d}, mode={mode}")
-    emit("self_test", verdict="PASS", dimensions=[3, 4, 8, 13], maximum_projector_error=maximum)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("export", type=Path, nargs="?")
-    parser.add_argument("--work", type=Path)
-    parser.add_argument("--output", type=Path)
-    parser.add_argument("--owner-chunk", type=int, default=262144)
-    parser.add_argument("--shift-batch", type=int, default=128)
-    parser.add_argument("--row-batch", type=int, default=16)
-    parser.add_argument("--eigen-method", choices=("power", "eigsh"), default="power")
-    parser.add_argument("--eigen-steps", type=int, default=100)
-    parser.add_argument("--eigen-tolerance", type=float, default=1e-10)
-    parser.add_argument("--completion-steps", type=int, default=250)
-    parser.add_argument("--tolerance", type=float, default=1e-13)
-    parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("export", type=Path)
+    parser.add_argument("--work", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.self_test:
-        self_test()
-        return
-    if not args.export or not args.work or not args.output:
-        raise ValueError("Reconstruction requires EXPORT --work DIR --output FILE")
-    if min(args.owner_chunk, args.shift_batch, args.row_batch, args.eigen_steps, args.completion_steps) < 1:
-        raise ValueError("Chunk sizes and iteration limits must be positive")
     started, cpu_started = time.perf_counter(), time.process_time()
     reconstruction = Reconstruction(args)
     vector = reconstruction.run()
