@@ -136,7 +136,7 @@ The runner compares SHA-256 of the rebuilt and published bytes. The completed re
 | `fiducials/fiducial_5779.txt` | `feb416d67f27421bb3fcadf9bfd01a7b` | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
 | `fiducials/fiducial_15128.txt` | `83d8ca5483764e0b855c7cb21047df57` | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-The 15128 container was restarted seven times and resumed each time from its checkpoints on the Volume; its refinement time sums two call slices (19,668.87 + 742.35 s). These runs used eight Julia BLAS threads. Rebuilds of the standard 2208 file and of 5779 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`) were also byte-identical, and 15128's Mac and Linux builds used four and eight BLAS threads.
+The 15128 container was restarted seven times and resumed each time from its checkpoints on the Volume; its refinement time sums two call slices (19,668.87 + 742.35 s). These runs used eight Julia BLAS threads. Rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`; 15128 took 33,253.53 s of construction and 4,485.15 s of refinement) were also byte-identical.
 
 ### Saved-file verification
 
