@@ -20,13 +20,7 @@ shift = 86590
 orders = [2,2,2,3,4,3,5,4,3,5,4,3,5]
 matrices = [[3905,0,0,3905], [4347,16389,13867,23258], [1027,17890,12366,24441], [29136,8185,22071,23435], [21949,18352,11904,16493], [15383,19131,11125,12264], [8689,5296,24960,24577], [22569,9920,20336,22073], [8935,21611,8645,13256], [14193,21200,9056,17281], [3905,11346,18910,7687], [22632,6893,23363,13055], [26841,7808,22448,20009]]
 
-# 39604: read from the prototype's data/d39604/group.jls (matrices, orders) and
-# reconstruct/search_progress.json (shift).
-# Matrices are row-major residues modulo 79208; the shift is zero-based in
-# Julia's column-major orbit. Entry presence selects legacy_start=true in
-# stark_large.jl: reconstruction trial 0 uses default_rng(221), as the prototype did.
-# The computed standard_map is [1383,20332,69539,3]; no separate map pin is needed.
-# Its full rebuild with the repository's scripts is deferred; see RESULTS.md.
+# 39604: from the prototype's group and reconstruction data; residues modulo 79208.
 [39604]
 shift = 16203281
 orders = [2,2,4,9,25,4,9,25,11]

@@ -7,7 +7,7 @@ This repo gives numerical fiducials for every d from 197 to 300. Together with t
 - In papers: 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)), and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)).
 - In talks or surveys: 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21), and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl).
 
-We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. Of the larger dimensions, SICs were known before in 2208, 5779 and 39604 (none of the 39604 data is posted); we found none in 15128 ([literature status](RESULTS.md#literature-status)).
+We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. Of the larger dimensions, SICs were known before in 2208, 5779 and 39604 (we found no posted 39604 fiducial); we found none in 15128 ([literature status](RESULTS.md#literature-status)).
 
 There are 109 files in 108 dimensions: 108 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace.
 
