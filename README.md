@@ -1,4 +1,4 @@
-# SIC-POVMs in every dimension from 197 to 300, plus 2208, 5779 and 15128
+# Numerical SIC-POVM fiducials in 108 dimensions, up to d = 39604
 
 A SIC (symmetric informationally complete POVM) in dimension d is a set of d² unit vectors in ℂ^d with |⟨ψ_i|ψ_j⟩|² = 1/(d+1) for i ≠ j. Here each SIC is the Weyl–Heisenberg orbit of one fiducial ψ under X^a Z^b. Zauner conjectured in 1999 ([thesis](http://www.gerhardzauner.at/documents/gz-quantendesigns.pdf); [English](https://doi.org/10.1142/S0219749911006776)) that a SIC exists in every dimension.
 
@@ -7,9 +7,9 @@ This repo gives numerical fiducials for every d from 197 to 300. Together with t
 - In papers: 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)), and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)).
 - In talks or surveys: 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21), and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl).
 
-We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. Of the larger dimensions, SICs were known before in 2208 and 5779; we found none in 15128 ([literature status](RESULTS.md#literature-status)).
+We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. The d = 39604 result replicates a published SIC; we found no posted fiducial ([literature status](RESULTS.md#literature-status)).
 
-There are 108 files in 107 dimensions: 107 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace.
+There are 109 files in 108 dimensions: 108 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace.
 
 This repo supplies explicit fiducials. [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf) claims the results needed for Zauner's conjecture in general; we have not checked it.
 
@@ -32,7 +32,7 @@ The precise mode bounds errors in the saved decimal coordinates; these remain nu
 
 **The other 103 in 197..300:** `stark.jl` implements the algebraic method of [Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), using Flammia's [Zauner.jl](https://github.com/sflammia/Zauner.jl), pinned by commit. Its comments explain the replacements for costly library steps and its canonical representative rule. `refine.py` takes the resulting seed to the published precision.
 
-**Large dimensions:** `stark_large.jl` uses a companion-form cocycle and streamed trace calculations. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. All three published standard-Zauner large-d files retain an unpublished prototype's integer quotient coordinates and determinant shifts in `representatives.toml`; the Julia header states the rule for unpinned dimensions. `test_large.py` tests that rule at small d.
+**Large dimensions:** `stark_large.jl` uses a companion-form cocycle and streamed trace calculations. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. All four published standard-Zauner large-d files retain an unpublished prototype's integer quotient coordinates and determinant shifts in `representatives.toml`; the Julia header states the rule for unpinned dimensions. `test_large.py` tests that rule at small d. The 39604 file comes from the prototype these scripts were ported from; its rebuild with them is deferred ([provenance](RESULTS.md#39604-provenance)).
 
 **Fibonacci 2208:** `fibonacci_2208.py` searches the antiunitary fixed space subject to alignment constraints, with its prototype's ambient random seed fixed in the script. It uses the same large-d refiner.
 
@@ -78,8 +78,12 @@ modal run --detach modal_rebuild.py
 modal run --detach modal_rebuild.py --files fiducials/fiducial_5779.txt
 ```
 
-The local test covers small odd/even dimensions, precise verification, recovery from a real numerical checkpoint, byte comparisons and negative controls. The Modal runner rebuilds all four large published files by default, comparing SHA-256 in isolated copies. Its header explains how to retrieve logs and results.
+The local test covers small odd/even dimensions, precise verification, recovery from a real numerical checkpoint, byte comparisons and negative controls. The Modal runner defaults to the four earlier large files, comparing SHA-256 in isolated copies. Its header explains how to retrieve logs and results; the deferred 39604 rebuild needs a larger memory allocation than this runner reserves ([details](RESULTS.md#39604-provenance)).
 
 After rebuilding, require `git diff --exit-code fiducials/ fibonacci/`.
+
+## To do
+
+- **January 2027:** rebuild d = 39604 with the repository's scripts on a suitably sized 8-core machine; [acceptance checks](RESULTS.md#39604-provenance).
 
 Public domain (CC0).
