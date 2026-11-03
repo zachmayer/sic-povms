@@ -119,18 +119,18 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### 39604 provenance
 
-`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from, after the conjugation fix that `stark_large.jl` now carries. `representatives.toml` pins its quotient generators and determinant shift. This repository's own scripts have not yet rebuilt it: that takes about 4–5 days of one 8-core machine with about 100 GiB of memory. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
+`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix that `stark_large.jl` now carries; the fix changes only the conjugation stage, which ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. This repository's own scripts have not yet rebuilt it: we estimate it at 4–5 days of one 8-core machine with about 100 GiB of memory. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
 
 | stage | wall time (s) |
 |---|---:|
-| Ghost at 2048 bits (group, initial ghost, refinement; peak 79.6 GiB) | 37,578 |
+| Ghost at 2048 bits (group, initial ghost, Newton correction; peak 79.6 GiB) | 37,578 |
 | Units, eight workers | 14,734 |
 | Normal bases and traces | 8,368 |
 | Conjugation | 3,957 |
 | Reconstruction | 9,976 |
 | 640-bit refinement, eight workers | 129,408 |
 
-An independent 600-bit check of all 1,568,476,815 nonidentity overlaps (the prototype's checker, separate from `verify.py`) bounds the squared-overlap error below 4.0e-154 and the U_Z residual below 5.6e-152. `verify.py --precise` on this file took 43,942 s on one thread.
+An independent 600-bit check of all 1,568,476,815 nonidentity overlaps (the prototype's checker, separate from `verify.py`) bounds the squared-overlap error below 4.0e-154 and the U_Z residual below 5.6e-152. `verify.py --precise` on this file took 43,942 s on one thread, with the prototype's NumPy 2.3.2 (the verifier's bytes are identical to this repository's).
 
 ### Linux rebuild measurements
 
@@ -162,7 +162,7 @@ The 5779 and 15128 precise checks ran in one call on the M2 Max: 4,504 s wall ti
 - **2208:** Horodecki, Rudnicki and Życzkowski's [2020 survey, §II.1](https://arxiv.org/abs/2002.03233) credits Grassl with a numerical SIC in this dimension. Grassl's [2021 slides, p. 14](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf) also report it. We found no posted 2208 fiducial in the tables described below. Orbit equivalence to either of this repository's 2208 files has not been checked.
 - **5779:** a prior SIC is included in Appleby, Bengtsson, Grassl, Harrison and McConnell's [Stark-unit construction](https://arxiv.org/abs/2112.05552), with [5779 data posted by Grassl](http://s208785153.online.de/SICPOVM/5779/). This repository's result is numerical; orbit equivalence has not been checked.
 - **15128:** we found no prior SIC in the sources checked. [Bengtsson–McConnell, arXiv:2606.23535v1, §2](https://arxiv.org/html/2606.23535v1#S2), dated 22 June 2026, explicitly states that at d = 15128 “as yet no SIC has been found.” This dates the literature claim; it does not establish the absence of later or unpublished work.
-- **39604 — before:** Bengtsson, Grassl and McConnell published a SIC in this dimension in [arXiv:2403.02872](https://arxiv.org/abs/2403.02872). This result is a replication, not a new SIC dimension. **Posted data:** the literature check recorded on 30 October 2026 found no posted fiducial: [Grassl's BGM table](http://s208785153.online.de/SICPOVM/) lists 39604 with empty Magma and numerical-data cells. Grassl's [17 September 2026 abstract](https://www.mn.uio.no/math/english/research/projects/qombine/events/seminars/2026-09-17-grassl.html) calls 39604 the largest computed dimension. This repository now supplies the numerical file with the [prototype provenance and rebuild gap](#39604-provenance-and-deferred-rebuild) above. Orbit equivalence to BGM's SIC has not been checked.
+- **39604 — before:** Bengtsson, Grassl and McConnell published a SIC in this dimension in [arXiv:2403.02872](https://arxiv.org/abs/2403.02872). This result is a replication, not a new SIC dimension. **Posted data:** the literature check recorded on 30 October 2026 found no posted fiducial: [Grassl's BGM table](http://s208785153.online.de/SICPOVM/) lists 39604 with empty Magma and numerical-data cells. Grassl's [17 September 2026 abstract](https://www.mn.uio.no/math/english/research/projects/qombine/events/seminars/2026-09-17-grassl.html) calls 39604 the largest computed dimension. This repository now supplies the numerical file with the [prototype provenance and rebuild gap](#39604-provenance) above. Orbit equivalence to BGM's SIC has not been checked.
 
 The literature check used these additional records:
 

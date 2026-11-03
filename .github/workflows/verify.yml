@@ -30,7 +30,8 @@ jobs:
           advanced-security: false
           annotations: true
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - run: uv run verify.py
+      # fiducial_39604.txt takes about 2 minutes even in default mode; the weekly job checks it.
+      - run: uv run verify.py $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v fiducial_39604.txt)
       - run: uv run verify.py fiducials/fiducial_197.txt fiducials/fiducial_198.txt --precise
       - name: a file in the wrong folder fails
         run: |
@@ -47,4 +48,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - run: uv run verify.py --precise
+      # --precise on fiducial_39604.txt takes about 12 hours, past the 6-hour job limit; it is run by hand (RESULTS.md).
+      - run: uv run verify.py --precise $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v fiducial_39604.txt)
+      - run: uv run verify.py fiducials/fiducial_39604.txt
