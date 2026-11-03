@@ -2,7 +2,7 @@
 # requires-python = ">=3.13"
 # dependencies = ["modal==1.6.2"]
 # ///
-"""Rebuild all four large published files in isolated Linux copies on Modal.
+"""Rebuild the large published files in isolated Linux copies on Modal (by default all but 39604).
 
 modal run --detach modal_rebuild.py
 modal run --detach modal_rebuild.py --files fiducials/fiducial_5779.txt
