@@ -356,13 +356,13 @@ def main() -> None:
     temporary = args.output.with_suffix(args.output.suffix+".part")
     write_seed(temporary, vector)
     temporary.replace(args.output)
-    lam = np.vdot(vector, zauner(vector))
+    moved = zauner(vector)
+    lam = np.vdot(vector, moved)
     result = {"d": len(vector),
               "output": str(args.output), "seconds": time.perf_counter()-started,
               "cpu_seconds": time.process_time()-cpu_started, "peak_rss_bytes": peak_rss(),
               "norm_error": abs(float(np.vdot(vector, vector).real)-1),
-              "zauner_residual": float(np.max(np.abs(zauner(vector)-lam*vector))),
-              "owner_and_sign_file_bytes": 5*len(vector)**2,
+              "zauner_residual": float(np.max(np.abs(moved-lam*vector))),
               "configuration": reconstruction.configuration}
     save_json(args.work/"result.json", result)
     emit("complete", **result)

@@ -1,5 +1,5 @@
 # Build a companion-form SIC seed by the Stark-unit method of stark.jl.
-# Run: julia --project=. --threads=1 stark_large.jl DIMENSION [BITS=2048]
+# Run: julia --project=. --threads=1 --gcthreads=1 stark_large.jl DIMENSION [BITS=2048]
 #
 # To keep large d tractable, factor the cocycle along the label orbit, use FLINT
 # FFT residuals with a frozen Float64 QR, and stream units and normal-basis traces.
@@ -79,6 +79,7 @@ function arithmetic_generators(F)
     R,_=quo(O,ideal(O,dd))
     UR,ur=unit_group(R)
     anti,A=is_antiunitary_with_generator(F)
+    # A = a*I + y*L with L[2,2] = 0, so a = A[2,2] and y = A[2,1]; L acts as beta.
     generator = anti ? A[2,2]+A[2,1]*beta : beta
     G,pi=quo(UR,[preimage(ur,R(O(generator)))])
     chosen=typeof(zero(G))[]
@@ -125,7 +126,7 @@ function orbit_shin(F, p1, p2)
 end
 
 function ghost_nu(F,p1,p2)
-    d,A,β = Int(F.d),F.A,F.x
+    d,A = Int(F.d),F.A
     QA = QuadBin(A[2,1],A[2,2]-A[1,1],-A[1,2])
     ζ = -cispi(BigFloat(1)/d)
     c = -e(-BigFloat(rademacher(A))/24)/sqrt(BigFloat(d+1))
@@ -288,7 +289,7 @@ end
 
 function streamed_normal_recipes(u,d)
     map(1:ndims(u)) do j
-        isbasis(recipe)=minimum(abs,flint_dft(complex.(basis_marginal(u,j,recipe));inverse=true))>ldexp(big(1.0),-LIVE_BITS)
+        isbasis(recipe)=minimum(abs,flint_dft(complex.(basis_marginal(u,j,recipe));inverse=true))>ldexp(big(1.0),-128)
         linear=Zauner.NormalBasisRecipe(:linear,nothing)
         isbasis(linear) && return linear
         for kind in (:shifted_quad,:shifted_quad_sq), m in 0:length(u)-1
@@ -339,6 +340,7 @@ function conjugate_units(σ,trace,forms_x)
         keys=[(round(real(z);digits=10),round(imag(z);digits=10)) for z in λ]
         allunique(keys) || error("multiplication roots tie at 10 decimals")
         index=argmin(keys)
+        # z is an eigenvector of A scaled so that its first entry is its eigenvalue.
         # Solve A*z-z[1]*z=0 with Jacobian A-z[1]*I-z*e₁ᵀ, starting at the selected Float64 root.
         z=Complex{BigFloat}.(V[:,index]*λ[index]/V[1,index])
         for _ in 1:5
@@ -462,7 +464,7 @@ function run_construct(d,bits)
         mats,ords,P,S
     end
     initial=stage("initial") do
-        setprecision(BigFloat,LIVE_BITS) do
+        setprecision(BigFloat,128) do
             cocycle_ghost(F)
         end
     end
@@ -535,6 +537,9 @@ function run_construct(d,bits)
     run(`uv run $(joinpath(@__DIR__,"reconstruct_large.py")) $(joinpath(work,"export")) --work $(joinpath(work,"reconstruction")) --output $(joinpath(root,"fiducial_$(d)_stark.txt"))`)
 end
 
-length(cli_args) in (1,2) || error("usage: stark_large.jl DIMENSION [BITS=2048]")
-run_construct(parse(Int,cli_args[1]),length(cli_args)==2 ? parse(Int,cli_args[2]) : 2048)
-println("PROCESS maxrss=$(Sys.maxrss())")
+# Run only as a script, so test_conjugation.jl can include the helpers.
+if abspath(PROGRAM_FILE) == @__FILE__
+    length(cli_args) in (1,2) || error("usage: stark_large.jl DIMENSION [BITS=2048]")
+    run_construct(parse(Int,cli_args[1]),length(cli_args)==2 ? parse(Int,cli_args[2]) : 2048)
+    println("PROCESS maxrss=$(Sys.maxrss())")
+end

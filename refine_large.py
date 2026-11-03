@@ -88,12 +88,9 @@ def write_hp(path: Path, psi: list[acb]) -> None:
     norm = sum((z.real * z.real + z.imag * z.imag for z in psi), arb(0)).sqrt()
     phase = psi[0].conjugate() / abs(psi[0])
     normalized = [z * phase / norm for z in psi]
-    path.parent.mkdir(parents=True, exist_ok=True)
     rows = [(fraction(z.real), Fraction(0) if j == 0 else fraction(z.imag))
             for j, z in enumerate(normalized)]
-    temporary = path.with_suffix(path.suffix + ".pending")
-    temporary.write_bytes(fiducial_text(rows, 150).encode("ascii"))
-    temporary.replace(path)
+    atomic_text(path, fiducial_text(rows, 150))
 
 
 
@@ -127,8 +124,7 @@ def peak_rss_bytes():
     return int(rss if sys.platform == "darwin" else rss*1024)
 
 
-def hp_gradient(psi, stop, *, start_row=0, gradient=None, worst=None,
-                checkpoint=None, checkpoint_rows=64):
+def hp_gradient(psi, start_row, stop, gradient, worst, checkpoint, checkpoint_rows):
     """J^T r over [start_row, stop), or complete with a saved prefix.
 
     Row a=d//2 has weight one only for EVEN d. For odd d it is paired with
@@ -140,9 +136,6 @@ def hp_gradient(psi, stop, *, start_row=0, gradient=None, worst=None,
         raise ValueError("Invalid gradient row interval")
     target = arb(1)/(d+1)
     conjugates = [z.conjugate() for z in psi]
-    gradient = [acb(0) for _ in psi] if gradient is None else gradient
-    worst = arb(0) if worst is None else worst
-    norm = sum((z.real*z.real + z.imag*z.imag for z in psi), arb(0))
     for a in range(start_row, stop):
         weight = 1 if a == 0 or (d % 2 == 0 and a == d//2) else 2
         indices = [(j+a) % d for j in range(d)]
@@ -157,14 +150,13 @@ def hp_gradient(psi, stop, *, start_row=0, gradient=None, worst=None,
             gradient[j] += h[j]*psi[k]
             gradient[k] += h[j].conjugate()*psi[j]
         gradient = [z.mid() for z in gradient]
-        if checkpoint is not None and ((a+1) % checkpoint_rows == 0 or a+1 == stop):
+        if (a+1) % checkpoint_rows == 0 or a+1 == stop:
             checkpoint(a+1, gradient, worst)
-    return gradient, worst, abs(norm-1).mid()
 
 
 def gradient_shard(packed_psi, identity, first, stop, path, checkpoint_rows):
     """Independently callable, resumable worker; no network or global state."""
-    ctx.prec = identity["bits"]
+    ctx.prec = BITS
     ctx.threads = 1
     path = Path(path)
     shard_identity = {**identity, "psi_sha256": digest(packed_psi), "first": first, "stop": stop}
@@ -188,9 +180,8 @@ def gradient_shard(packed_psi, identity, first, stop, path, checkpoint_rows):
                      seconds=prior_seconds + time.perf_counter()-start)
         save_state(path, state)
 
-    hp_gradient(unpack_vector(packed_psi), stop, start_row=state["next_row"], gradient=gradient,
-                worst=unpack_real(state["worst"]), checkpoint=checkpoint,
-                checkpoint_rows=checkpoint_rows)
+    hp_gradient(unpack_vector(packed_psi), state["next_row"], stop, gradient,
+                unpack_real(state["worst"]), checkpoint, checkpoint_rows)
     return state
 
 
@@ -238,7 +229,6 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     checkpoint_path = work / "checkpoint.json"
     identity = {"input_sha256": hashlib.sha256(args.file.read_bytes()).hexdigest(),
-                "bits": BITS, "steps": STEPS, "checkpoint_cg_iterations": CHECKPOINT_CG_ITERATIONS,
                 "d": d, "workers": min(args.workers, d//2+1),
                 "code_sha256": hashlib.sha256(Path(__file__).read_bytes()
                                                + Path(__file__).with_name("search.py").read_bytes()).hexdigest()}
@@ -248,10 +238,10 @@ def main():
             raise ValueError("Checkpoint input, settings or implementation changed; use another --work directory")
         psi = unpack_vector(state["psi"])
         print(json.dumps({"event": "resume", "step": state["step"], "phase": state["phase"],
-                          "next_row": state["next_row"], "checkpoint": str(checkpoint_path)}), flush=True)
+                          "checkpoint": str(checkpoint_path)}), flush=True)
     else:
         state = {"identity": identity, "step": 0, "phase": "gradient",
-                 "psi": pack_vector(psi), "gradient": None, "next_row": 0,
+                 "psi": pack_vector(psi), "gradient": None,
                  "worst": pack_real(arb(0)), "gradient_seconds": 0.0, "cg_x": None,
                  "normal_seconds": 0.0, "normal_calls": 0}
         save_state(checkpoint_path, state)
@@ -273,10 +263,8 @@ def main():
     operator = LinearOperator((2*d, 2*d), matvec=normal, dtype=np.float64)
     log = work / "refinement.jsonl"
     for step in range(state["step"], STEPS):
-        gradient = None if state["gradient"] is None else unpack_vector(state["gradient"])
         if state["phase"] == "gradient":
             start = time.perf_counter()
-            prior_seconds = state["gradient_seconds"]
             count = identity["workers"]
             rows = d//2 + 1
             packed = state["psi"]
@@ -289,11 +277,11 @@ def main():
                 parts = [job.result() for job in jobs]
             gradient, error = merge_gradient_shards(parts, identity, packed)
             norm_error = abs(sum((z.real*z.real + z.imag*z.imag for z in psi), arb(0))-1).mid()
-            state["gradient_core_seconds"] = sum(part["seconds"] for part in parts)
             state.update(phase="solve", gradient=pack_vector(gradient), worst=pack_real(error),
-                         norm_error=pack_real(norm_error), next_row=d//2+1,
-                         gradient_seconds=prior_seconds + time.perf_counter()-start)
+                         norm_error=pack_real(norm_error), gradient_seconds=time.perf_counter()-start)
             save_state(checkpoint_path, state)
+        else:
+            gradient = unpack_vector(state["gradient"])
         for path in work.glob(f"step{step}.part*.json"):
             path.unlink()
         error = unpack_real(state["worst"])
@@ -341,7 +329,7 @@ def main():
         print(json.dumps({"step": step, "normal_calls": prior_calls + calls,
                           "normal_seconds": prior_seconds + time.perf_counter()-start}), flush=True)
         state.update(step=step+1, phase="gradient", psi=pack_vector(psi), gradient=None,
-                     next_row=0, worst=pack_real(arb(0)), gradient_seconds=0.0,
+                     worst=pack_real(arb(0)), gradient_seconds=0.0,
                      cg_x=None, normal_seconds=0.0, normal_calls=0)
         save_state(checkpoint_path, state)
     raise RuntimeError(f"Refinement did not converge within {STEPS} steps; checkpoint retained")

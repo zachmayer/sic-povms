@@ -1,7 +1,6 @@
-# Load the production conjugator and its helpers without launching construction.
-source=read(joinpath(@__DIR__,"stark_large.jl"),String)
-source=replace(source,"include(\"stark.jl\")"=>"include($(repr(joinpath(@__DIR__,"stark.jl"))))")
-include_string(Main,first(split(source,"length(cli_args) in")),joinpath(@__DIR__,"stark_large.jl"))
+# The production conjugator against a 512-bit reference. A two-element basis whose
+# 1e14-sized terms cancel to 200 (factor 1.1e11; d = 39604's worst unit had 1.8e11).
+include(joinpath(@__DIR__,"stark_large.jl"))
 
 setprecision(BigFloat,512) do
     B=big(1000.0)

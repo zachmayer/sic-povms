@@ -153,7 +153,8 @@ def double_precision_file(psi: np.ndarray) -> str:
 
 
 def write_seed(path: Path, psi: np.ndarray) -> None:
-    """17-digit seed: normalize before fixing phase, preserving construction bytes."""
+    """Seed for refine_large.py. Same format as double_precision_file, but normalizes before fixing the
+    phase: the large-d seeds were written this way and their published bytes depend on it."""
     psi = psi / np.linalg.norm(psi)
     psi *= np.conj(psi[0]) / abs(psi[0])
     path.write_bytes(fiducial_text([(Fraction(float(z.real)), Fraction(0) if j == 0 else Fraction(float(z.imag)))
