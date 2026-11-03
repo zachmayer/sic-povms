@@ -147,7 +147,7 @@ All four rebuilt files are byte-identical to the published ones. The 5779 and 15
 
 ### Saved-file verification
 
-A fresh offline `uv run verify.py` sweep at commit `99d97fe` passed all 109 files in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
+A fresh offline `uv run verify.py` sweep of the 109 files merged in `b5da7a8` passed all of them in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
 
 | published file | maximum deviation, precise upper bound | U_Z residual, precise upper bound | U_Z eigenvalue |
 |---|---:|---:|---|
