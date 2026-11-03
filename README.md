@@ -2,7 +2,7 @@
 
 A SIC (symmetric informationally complete POVM) in dimension d is a set of d² unit vectors in ℂ^d with |⟨ψ_i|ψ_j⟩|² = 1/(d+1) for i ≠ j. Here each SIC is the Weyl–Heisenberg orbit of one fiducial ψ under X^a Z^b. Zauner conjectured in 1999 ([thesis](http://www.gerhardzauner.at/documents/gz-quantendesigns.pdf); [English](https://doi.org/10.1142/S0219749911006776)) that a SIC exists in every dimension.
 
-This repo gives numerical fiducials for every d from 197 to 300. Together with the results through 196 of [Bengtsson and Grassl](https://arxiv.org/abs/2512.13201), this covers every d ≤ 300. A search of the cited literature found prior SICs in nine of our 104 dimensions:
+This repo gives numerical fiducials for every d from 197 to 300, and for d = 2208, 5779, 15128 and 39604. Together with the results through 196 of [Bengtsson and Grassl](https://arxiv.org/abs/2512.13201), this covers every d ≤ 300. A search of the cited literature found prior SICs in nine of the 104 dimensions in 197..300:
 
 - In papers: 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)), and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)).
 - In talks or surveys: 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21), and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl).
