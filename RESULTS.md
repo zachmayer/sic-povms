@@ -118,27 +118,16 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### Linux rebuild measurements
 
-Measurements retained at commit `d104d3e`, before the live-unit precision repair. These measurements do not validate later source changes.
+`modal_rebuild.py` rebuilt each file from commit `d46d4dd`'s scripts (later commits on this branch change only docs) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used one language thread and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
 
-`modal_rebuild.py` launched each file's construction and refinement commands in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used one language thread and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. The times below are wall-clock seconds recorded by the runner, rounded to two decimal places, and exclude image building. They measure the repository's commands, including reconstruction in the standard construction stage.
+| published file | run ID | construction (s) | refinement (s) | matching SHA-256 |
+|---|---|---:|---:|---|
+| `fiducials/fiducial_2208.txt` | `255650a0fadc405486ad03550d7a88a7` | 1,352.04 | 289.48 | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
+| `fibonacci/fiducial_2208.txt` | `0987f220f5f24b5297f194553a63be0d` | 93.69 | 302.41 | `811ca49245b4c36b0027a0ed42895073e32108104fd15880aeddf57f191eb435` |
+| `fiducials/fiducial_5779.txt` | `9ad39fc009ff4dae8a7382cf9c2c8292` | — | — | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
+| `fiducials/fiducial_15128.txt` | `6dbf3835bda747f8829e8251ea73740a` | — | — | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-| published file | construction (s) | refinement (s) | Linux rebuild |
-|---|---:|---:|---|
-| `fiducials/fiducial_2208.txt` | 1,288.82 | 286.65 | Byte-identical |
-| `fibonacci/fiducial_2208.txt` | 91.62 | 291.13 | Byte-identical |
-| `fiducials/fiducial_5779.txt` | 9,634.27 | 4,915.08 | Byte-identical |
-| `fiducials/fiducial_15128.txt` | 59,529.71 | 20,411.23 | Byte-identical |
-
-The 64 GiB reservation is not a peak-RSS measurement. Peak RSS is unavailable in the retained local records; `/usr/bin/time -v` records it in the stage logs on the `sic-large-rebuild` Volume.
-
-| published file | run ID | matching SHA-256 |
-|---|---|---|
-| `fiducials/fiducial_2208.txt` | `2d79f5ee3be840328548c6ea125e33da` | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
-| `fibonacci/fiducial_2208.txt` | `345d62c286d949c595eb1f029d92adc9` | `811ca49245b4c36b0027a0ed42895073e32108104fd15880aeddf57f191eb435` |
-| `fiducials/fiducial_5779.txt` | `feb416d67f27421bb3fcadf9bfd01a7b` | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
-| `fiducials/fiducial_15128.txt` | `83d8ca5483764e0b855c7cb21047df57` | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
-
-The 15128 container was restarted seven times and resumed each time from its checkpoints on the Volume; its refinement time sums two call slices (19,668.87 + 742.35 s). These runs used eight Julia BLAS threads. Rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`; 15128 took 33,253.53 s of construction and 4,485.15 s of refinement) were also byte-identical.
+All four rebuilt files are byte-identical to the published ones. The 5779 and 15128 runs took seven and nine container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume, so the runner recorded only partial times for them. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume. Before the conjugation fix, at commit `d104d3e`, rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`) were also byte-identical.
 
 ### Saved-file verification
 
