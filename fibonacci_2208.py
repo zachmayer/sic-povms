@@ -34,7 +34,7 @@ import numpy as np
 from scipy import fft
 from scipy.linalg import eigh, schur, svd
 
-from search import read_fiducial
+from search import read_fiducial, write_seed
 
 D = 2208
 K = 8
@@ -289,20 +289,6 @@ def minimize(model: Alignment, start: np.ndarray) -> np.ndarray:
         history = history[-15:]
         x, loss, tangent, projected = newx, newloss, newtangent, newprojected
     raise TrialFailure("No convergence in 500 iterations")
-
-
-def write_seed(path: Path, psi: np.ndarray) -> None:
-    psi = psi / np.linalg.norm(psi)
-    psi *= np.conj(psi[0]) / abs(psi[0])
-    psi[0] = psi[0].real
-
-    def number(x: float) -> str:
-        if x == 0:
-            return "+.00000000000000000e0"
-        mantissa, exponent = f"{abs(x):.16e}".split("e")
-        return f"{'+' if x > 0 else '-'}.{mantissa.replace('.', '')}e{int(exponent) + 1}"
-
-    path.write_bytes("".join(number(z.real) + number(z.imag) + "i\n" for z in psi).encode("ascii"))
 
 
 def main() -> None:
