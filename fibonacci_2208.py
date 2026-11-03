@@ -4,23 +4,18 @@
 # [tool.uv]
 # exclude-newer = "2026-10-19T00:00:00Z"
 # ///
-"""Rebuild the d=2208 type F_a double-precision seed.
+"""Find the d=2208 Fibonacci antiunitary SIC seed by an aligned search.
 
-This F_a representative needs an alignment-constrained search rather than stark.jl's
-standard-Zauner reconstruction. CRT factors of the Fibonacci antiunitary give 96 real
-coordinates; both even-dimensional alignment relations give 118 quadratic constraints.
-Projected L-BFGS with least-squares retraction minimizes the full SIC loss. FFT rows
-replace the dense overlap arrays of search.py/refine.py at this dimension. No cached
-basis, checkpoint, or previous trial is read. The seed in representatives.toml supplies ambient complex
-vectors, projected onto the fixed space; trials run in order until the first SIC.
-Internal orthonormal coordinates do not select the start. BLAS and FFT calls use
-one thread to limit resource use. refine_large.py supplies the 150 digits.
+This representative needs F_a symmetry rather than stark.jl's standard Zauner.
+CRT factors give a 96-dimensional real fixed space; the two even-d alignment
+relations give 118 quadratic constraints. Projected L-BFGS with least-squares
+retraction minimizes the full SIC loss. FFT rows avoid search.py's dense arrays.
+The fixed ambient seed below selects the prototype's representative without
+using a saved vector. refine_large.py supplies the 150 digits.
 
-fiducial_48g.txt is fetched separately from Grassl--Scott's source supplement at
-https://arxiv.org/src/1707.02944v2 (SHA-256 below). The alignment relations are Eqs.15--16
-of https://arxiv.org/abs/1905.09737. The antiunitary is Eqs.24--25 of 1707.02944.
-
-  uv run fibonacci_2208.py --fetch-input
+The checked 48g input comes from https://arxiv.org/src/1707.02944v2.
+Alignment: https://arxiv.org/abs/1905.09737, Eqs. 15--16; antiunitary:
+1707.02944, Eqs. 24--25. Run: uv run fibonacci_2208.py --fetch-input
 """
 
 import argparse
@@ -29,7 +24,6 @@ import io
 import os
 from pathlib import Path
 import tarfile
-import tomllib
 from urllib.request import urlopen
 
 # Limit resource use before loading the numerical libraries.
@@ -46,6 +40,8 @@ D = 2208
 K = 8
 INPUT_SHA256 = "f0b3517ccf6e9ebe40eea6cee62b436f80226e5bf99280a2f0b71f894dc9d090"
 INPUT_URL = "https://arxiv.org/src/1707.02944v2"
+# Retain the unpublished prototype's representative, without saving its vector.
+FIBONACCI_SEED = 2348
 
 
 class TrialFailure(RuntimeError):
@@ -323,8 +319,7 @@ def main() -> None:
         with urlopen(INPUT_URL, timeout=60) as response:
             fetch_input(input_path, response.read())
     model = Alignment(input_path)
-    choices = tomllib.loads(Path(__file__).with_name("representatives.toml").read_text(encoding="utf-8"))
-    rng = np.random.default_rng(choices["2208"]["fibonacci_seed"])
+    rng = np.random.default_rng(FIBONACCI_SEED)
     for trial in range(100):
         ambient = rng.normal(size=D) + 1j * rng.normal(size=D)
         start = (model.b.conj().T @ ambient).real

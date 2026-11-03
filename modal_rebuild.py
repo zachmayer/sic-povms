@@ -2,22 +2,16 @@
 # requires-python = ">=3.13"
 # dependencies = ["modal==1.6.2"]
 # ///
-"""Fresh Linux rebuilds, one container per published file, one remote function.
+"""Rebuild all four large published files in isolated Linux copies on Modal.
 
 modal run --detach modal_rebuild.py
 modal run --detach modal_rebuild.py --files fiducials/fiducial_5779.txt
 modal volume get sic-large-rebuild /RUN_ID ./modal_results
 
-The entrypoint prints RUN_ID and call IDs, then exits. Results, logs, stage times
-and SHA-256 comparisons live on the Volume, independently of the client. A long
-file gets sequential 22-hour calls, resuming only its own numerical checkpoints.
-SIC_REBUILD_MEMORY_MIB defaults to 65536 MiB per file.
-SIC_REBUILD_BLAS_THREADS (default 8) sets Julia's BLAS threads; the Python stages always pin one.
-This uploads the local repository snapshot; no GitHub checkout or saved seed is
-used. Only the selected output is removed from each isolated fresh working copy.
-Published large-d files use representatives.toml's pins from an unpublished
-prototype run so its Mac runs and Linux rebuilds compare byte for byte. These
-rebuilds exercise pinned choices; test_large.py tests the canonical rule at small d.
+Upload the local source without saved seeds or checkpoints. Compare each result
+with its published SHA-256; logs and stage measurements stay on the Volume.
+Long files continue in sequential 22-hour calls using their own checkpoints.
+SIC_REBUILD_BLAS_THREADS (default 8) sets Julia's BLAS threads; Python pins one.
 """
 
 import hashlib
@@ -44,8 +38,8 @@ DEFAULT_FILES = (
 )
 JULIA_URL = "https://julialang-s3.julialang.org/bin/linux/x64/1.13/julia-1.13.2-linux-x86_64.tar.gz"
 VOLUME_NAME = "sic-large-rebuild"
-COPY_IGNORE = (".git", "large_d_work", "modal_results", "__pycache__", "*.checkpoint.json*",
-               "*.jsonl", "fiducial_*_stark.txt", "fiducial_*_seed*.txt", "fiducial_48g.txt")
+COPY_IGNORE = (".git", "large_d_work", "modal_results", "__pycache__",
+               "fiducial_*_stark.txt", "fiducial_*_seed*.txt", "fiducial_48g.txt")
 
 
 def commands_for(filename: str, workers: int = 8) -> list[list[str]]:
@@ -179,7 +173,7 @@ app = modal.App("sic-large-rebuild", image=image)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
 
-@app.function(cpu=8, memory=int(os.environ.get("SIC_REBUILD_MEMORY_MIB", "65536")),
+@app.function(cpu=8, memory=65536,
               timeout=24 * 3600, single_use_containers=True, volumes={"/results": volume})
 def rebuild(run_id: str, filename: str, expected: str, blas_threads: int) -> dict:
     volume.reload()

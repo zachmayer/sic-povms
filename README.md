@@ -1,63 +1,65 @@
 # SIC-POVMs in every dimension from 197 to 300, plus 2208, 5779 and 15128
 
-A SIC (symmetric informationally complete POVM) in dimension d is a set of d² unit vectors in ℂ^d with |⟨ψ_i|ψ_j⟩|² = 1/(d+1) for every pair i ≠ j. Zauner conjectured in 1999 ([thesis](http://www.gerhardzauner.at/documents/gz-quantendesigns.pdf); [English](https://doi.org/10.1142/S0219749911006776)) that one exists in every dimension. SICs are known in every dimension up to 196 ([Bengtsson and Grassl](https://arxiv.org/abs/2512.13201)) and in some higher ones.
+A SIC (symmetric informationally complete POVM) in dimension d is a set of d² unit vectors in ℂ^d with |⟨ψ_i|ψ_j⟩|² = 1/(d+1) for i ≠ j. Here each SIC is the Weyl–Heisenberg orbit of one fiducial ψ under X^a Z^b. Zauner conjectured in 1999 ([thesis](http://www.gerhardzauner.at/documents/gz-quantendesigns.pdf); [English](https://doi.org/10.1142/S0219749911006776)) that a SIC exists in every dimension.
 
-This repo has a numerical Weyl–Heisenberg SIC fiducial for every d from 197 to 300 (104 files), so with Bengtsson and Grassl's, every d ≤ 300 has one. A search of the cited literature found the prior results below; unpublished work and unindexed data remain outside the search:
+This repo gives numerical fiducials for every d from 197 to 300. Together with the results through 196 of [Bengtsson and Grassl](https://arxiv.org/abs/2512.13201), this covers every d ≤ 300. A search of the cited literature found prior SICs in nine of our 104 dimensions:
 
-- **No SIC found published before (95 dimensions):** every d in 197..300 except the nine below.
-- **SIC known before (9):** in papers, 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)) and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)); only in talks or surveys, 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21) and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl). Ours may lie in different orbits from those; we have not checked orbit equivalence.
+- In papers: 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)), and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)).
+- In talks or surveys: 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21), and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl).
 
-There are 108 numerical fiducials in 107 dimensions: 107 standard-Zauner files in `fiducials/` and one Fibonacci antiunitary file in `fibonacci/`.
+We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. Of the larger dimensions, SICs were known before in 2208 and 5779; we found none in 15128 ([literature status](RESULTS.md#literature-status)).
 
-SICs were known before in 2208 and 5779; we found no prior result in 15128 ([literature details](RESULTS.md#literature-status)).
+There are 108 files in 107 dimensions: 107 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace.
 
-This is about explicit fiducials. A recent manuscript, [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf), claims the results needed for Zauner's conjecture in general; we have not checked it.
+This repo supplies explicit fiducials. [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf) claims the results needed for Zauner's conjecture in general; we have not checked it.
 
-Each SIC is the orbit of a fiducial ψ under the d² displacements D_p = X^a Z^b (up to phase), so ψ determines it. `fiducials/fiducial_<d>.txt` gives ψ to 150 digits in the file format and conventions of Scott and Grassl ([arXiv:0910.5784](https://arxiv.org/abs/0910.5784)) and Scott (arXiv:1703.03993): unit norm, ψ_0 real and positive, and an eigenvector of their order-3 Zauner unitary U_Z. These are numerical solutions. `verify.py` checks these claims and shares no code with the other scripts. For `fibonacci/`, it checks Grassl–Scott's Fibonacci antiunitary F_f instead of U_Z (arXiv:1707.02944v2, Eqs. 24–25); its 16th power is type F_a at d = 2208 (Proposition III.5). Both folders are checked by default:
+*Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote `stark.jl` (from Argon's), `search.py`, `refine.py` and this README; GPT-6 Astra found both d = 2208 SICs; GPT-6 wrote the FFT verifier and the large-d pipeline, found d = 5779 and 15128, and fixed the conjugation precision that d = 39604 needed.*
+
+## Checking the files
+
+`verify.py` shares no code with the construction scripts. It checks all d² overlaps, norm, gauge and the stated symmetry, using O(d) working memory. Its header gives the equations and conventions, including the Fibonacci symmetry of [Grassl–Scott](https://arxiv.org/abs/1707.02944v2), Eqs. 24–25.
 
 ```sh
-uv run verify.py             # every file in fiducials/ and fibonacci/, NumPy double precision; PASS threshold 1e-12
-uv run verify.py --precise   # python-flint, 640-bit balls (~192 decimal digits); PASS threshold 1e-147
+uv run verify.py             # all published files; NumPy, threshold 1e-12
+uv run verify.py --precise   # FLINT 640-bit balls, threshold 1e-147
 ```
 
-Both modes check all d² overlaps using one FFT row at a time, in O(d² log d) time and O(d) working memory, and apply the symmetry with one Fourier transform and a chirp. Python 3.12+ and uv install the pinned NumPy and python-flint dependencies from the script header. In `--precise`, the maximum deviation (including unit norm) and symmetry residual are computed as rigorous upper bounds for the decimal coordinates in the file; PASS compares the bounds before display rounding. These remain numerical checks of the published coordinates. The default run over all 108 files takes about 13 s on an M2 Max, including uv startup ([measurements](RESULTS.md#saved-file-verification)). GitHub Actions runs the default mode on every file for each pull request and push to `main`, and `--precise` on every file weekly.
+The precise mode bounds errors in the saved decimal coordinates; these remain numerical checks. Python 3.12+ and uv suffice for the verifier; the large-d numerical Python scripts pin Python 3.13 and their dependencies in their headers. CI runs the default check on every PR and push, and the precise check weekly. [RESULTS.md](RESULTS.md) records verification measurements and construction history.
 
-*Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote the code (`stark.jl` from Argon's) and this README; GPT-6 Astra found both d = 2208 SICs; GPT-6 packaged their reproduction code and revised its determinism and verification checks; GPT-6 replaced the independent verifier with FFTs; GPT-6 generalized the large-d pipeline, added two numerical results and updated this README.*
+## Methods
 
-## How they were found
+**d = 198:** `search.py` implements Scott's numerical search in a Zauner eigenspace. `modal_search.py` distributes independent starts across [Modal](https://modal.com) containers; 800 cores found this SIC within an hour. Search times and the first SIC depend on floating-point details.
 
-**d = 198** by Scott's numerical method: random starts in the eigenvalue-1 eigenspace of U_Z, each minimized with L-BFGS (`search.py`). It ran on 800 cloud cores with [Modal](https://modal.com) (`modal_search.py`) and found this SIC within its first hour.
+**The other 103 in 197..300:** `stark.jl` implements the algebraic method of [Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), using Flammia's [Zauner.jl](https://github.com/sflammia/Zauner.jl), pinned by commit. Its comments explain the replacements for costly library steps and its canonical representative rule. `refine.py` takes the resulting seed to the published precision.
 
-**The other 103 in 197..300** by the algebraic method of Appleby, Flammia and Kopp ([arXiv:2501.03970](https://arxiv.org/abs/2501.03970)), which builds a fiducial from Stark units instead of searching for one. `stark.jl` computes a ghost's overlaps on one Galois orbit to thousands of bits (Gauss–Newton), recognizes integral trace forms of them by LLL in a ring class field H of ℚ(√((d+1)(d−3))), applies an automorphism of H that negates the square root, reconstructs the SIC's overlaps on that orbit, and completes the fiducial by alternating projections. It runs Flammia's [Zauner.jl](https://github.com/sflammia/Zauner.jl), pinned by commit, handles odd and even d and forms beyond Zauner.jl's table, and replaces the steps that fail or take hours at these sizes (each replacement says why). One thread per dimension: from 4 minutes to about a day at class number h ≈ 40, under 25 GB. Its choices are canonical (see its header): of a dimension's Galois-conjugate SICs it returns a fixed one, and of that SIC's images under the Clifford unitaries that commute with U_Z, a fixed fiducial. The rule goes by Galois data, not eigenvalue, so some files lie in U_Z's ω or ω² eigenspace (`verify.py` prints each file's).
+**Large dimensions:** `stark_large.jl` uses a companion-form cocycle and streamed trace calculations. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. All three published standard-Zauner large-d files retain an unpublished prototype's integer quotient coordinates and determinant shifts in `representatives.toml`; the Julia header states the rule for unpinned dimensions. `test_large.py` tests that rule at small d.
 
-`refine.py` takes each fiducial from double precision to 150 digits by Gauss–Newton in 640-bit arithmetic, and writes a real or imaginary part below 1e-180 as 0 (the converged residual is about 1e-194).
-
-The general large-d pipeline (`stark_large.jl`, `reconstruct_large.py`, `refine_large.py`) factors the Shintani–Faddeev cocycle along the companion-matrix orbit, corrects the ghost with FLINT FFT residuals and a frozen Float64 QR, streams its units and normal-basis traces, then reconstructs from determinant classes without a dense complex d×d matrix. Its header states a canonical rule computed from d. Every published large-d file instead uses data pinned in `representatives.toml` from an unpublished prototype run, so its Mac runs and Linux rebuilds compare byte for byte. These pins select integer quotient coordinates, determinant shifts and the Fibonacci search seed; the canonical rule is tested only at small d by `test_large.py`. Full-space 640-bit FFT Gauss–Newton refinement writes 150 digits and clips parts below 1e-180 to zero. The separate Fibonacci search projects ambient seeded starts onto its antiunitary fixed space and uses a separately fetched, checksummed Grassl–Scott alignment input; it uses the same general refiner.
-
-[RESULTS.md](RESULTS.md) records forms, conductors, class numbers, eigenvalues, hardware, timings, memory and literature status.
+**Fibonacci 2208:** `fibonacci_2208.py` searches the antiunitary fixed space subject to alignment constraints, with its prototype's ambient random seed fixed in the script. It uses the same large-d refiner.
 
 ## Reproducing
 
+Install Julia 1.13.2 and uv, then run from this directory:
+
 ```sh
-julia --project=. -e 'using Pkg; Pkg.instantiate()'   # once; Julia 1.13.2
-julia --project=. stark.jl 197                        # fiducial_197_stark.txt, to double precision
-uv run refine.py fiducial_197_stark.txt               # rewrites fiducials/fiducial_197.txt, unchanged
-uv run refine.py fiducials/fiducial_198.txt           # re-derives its 150 digits from the first 16, unchanged
-uv run search.py 19                                   # Scott's search: a SIC in d = 19 in a second
-uvx modal run modal_search.py --d 198 --containers 25 --minutes 60  # a search the size of the one that found d = 198
+julia --project=. -e 'using Pkg; Pkg.instantiate()'   # once
+julia --project=. stark.jl 197
+uv run refine.py fiducial_197_stark.txt
+uv run refine.py fiducials/fiducial_198.txt           # re-derive from double precision
+uv run search.py 19
+uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
 ```
 
-With `STARK_CHECKPOINTS=<dir>` (an existing directory, fresh for each version of `stark.jl`), `stark.jl` saves each Gauss–Newton step and its other expensive intermediates there, and a rerun resumes from them.
+`STARK_CHECKPOINTS=<existing-dir>` saves the smaller construction's expensive steps. Resume with the same command and directory.
 
-For the large-d companion-form construction (set `d` to the dimension):
+For the large-d companion-form construction:
 
 ```sh
 d=5779
-julia --project=. --threads=1 stark_large.jl "$d"
+julia --project=. --threads=1 --gcthreads=1 stark_large.jl "$d"
 uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
-The Python stages pin Python 3.13 in their script headers, and uv installs it. Construction defaults to 2048 bits; if the integer-relation guard requests more, raise the second positional argument and set a fresh `LARGE_D_WORK`, because construction checkpoints are bound to precision. `LARGE_D_WORK=<dir>` selects its checkpoint directory (default `large_d_work/d<d>`). Refinement checkpoints are bound to the input, code, precision and worker count. Resume with the same commands; use fresh directories after source or platform changes. Each published path has one writer: `refine_large.py` for this pipeline, `refine.py` for the smaller files.
+`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, supply the second positional argument and a fresh work directory. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Checkpoints bind inputs and settings to the code. Use fresh directories after source or platform changes; otherwise rerun the same commands to resume.
 
 For the published Fibonacci file:
 
@@ -66,29 +68,18 @@ uv run fibonacci_2208.py --fetch-input
 uv run refine_large.py fiducial_2208_fibonacci_seed.txt --output fibonacci/fiducial_2208.txt
 ```
 
-Its Grassl–Scott [48g source supplement](https://arxiv.org/src/1707.02944v2) is fetched separately. Only `sicfiducial.48.g.150.txt` is extracted, and its SHA-256 must be `f0b3517ccf6e9ebe40eea6cee62b436f80226e5bf99280a2f0b71f894dc9d090`. The fetched input is gitignored and is not licensed by this repo's CC0. With a local tarball, replace `--fetch-input` by `--source-archive /path/to/src.tar`; with the checked input present, omit both flags.
+The [48g source supplement](https://arxiv.org/src/1707.02944v2) is fetched separately. The script extracts only `sicfiducial.48.g.150.txt` and checks its SHA-256. This gitignored external input is not covered by the repo's CC0 license. With a local tarball, replace `--fetch-input` by `--source-archive /path/to/src.tar`; with the checked input present, omit both flags.
 
-Fresh Linux rebuilds of selected published paths run independently on Modal:
+Local acceptance and fresh Linux rebuilds:
 
 ```sh
+uv run test_large.py --work /absolute/path/outside/repo
 modal run --detach modal_rebuild.py
 modal run --detach modal_rebuild.py --files fiducials/fiducial_5779.txt
 ```
 
-Each file rebuilds in an isolated copy; logs, stage times, peak RSS and SHA-256 comparisons land on the `sic-large-rebuild` Volume, with completed measurements in [RESULTS.md](RESULTS.md#large-d-results).
+The local test covers small odd/even dimensions, precise verification, recovery from a real numerical checkpoint, byte comparisons and negative controls. The Modal runner rebuilds all four large published files by default, comparing SHA-256 in isolated copies. Its header explains how to retrieve logs and results.
 
-Local acceptance:
-
-```sh
-uv run test_large.py --work /absolute/path/outside/repo
-```
-
-It constructs small odd/even examples including q = 3, checks the saved digits with the independent precise verifier, and tests the Modal worker's local logic for restart and failure handling. After rebuilding in a Git checkout:
-
-```sh
-git diff --exit-code fiducials/ fibonacci/
-```
-
-`stark.jl` then `refine.py` rewrite the 14 algebraic files from 197 to 253 byte for byte, whatever the random seeds or the order of dimensions (Julia 1.13.2, macOS on Apple silicon). The early ones among the other 89 ran on earlier versions of `stark.jl` (each of which regenerated those 14 byte for byte); of those, only 206 and 214 were rerun with this one, and their refined files came out byte-identical. Of d = 199..300, 16 ran on Modal (Linux x86, same Project and Manifest), 294 on Modal then the Mac, and the rest on the Mac. The double-precision `stark.jl` output differs between the two in the 17th digit, but the refined files agreed byte for byte in both dimensions run on both (197 and 224). `search.py`'s unconstrained searches depend on floating-point details: a repeat finds SICs at its own pace.
+After rebuilding, require `git diff --exit-code fiducials/ fibonacci/`.
 
 Public domain (CC0).
