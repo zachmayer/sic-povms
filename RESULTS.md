@@ -117,9 +117,20 @@ The table gives the companion forms of the four standard-Zauner large-d files; [
 
 The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is type F_a; the standard 2208 file has type F_z ([Grassl–Scott, Proposition III.5](https://arxiv.org/abs/1707.02944v2)).
 
+### Direct-ghost local checks
+
+`stark_large.jl` builds the ghost at 2304 bits from the double-sine series, rounds it to 2048 bits and checks one residual. On macOS arm64 (Julia 1.13.3, one thread), against the earlier initial ghost plus Newton refinement:
+
+| d | old initial + Newton (s) | direct ghost (s) | old / direct RSS (GB) | direct residual | Newton steps, old / direct |
+|---:|---:|---:|---:|---|---:|
+| 2208 | 103.93 | 82.11 | 3.44 / 2.74 | 2^(-2040.54) | 70 / 0 |
+| 5779 | 797.19 | 253.22 | 5.31 / 2.99 | 2^(-2037.93) | 70 / 0 |
+
+The earlier and direct ghosts agree to 2032 bits (2208) and 2020 bits (5779). Both pipelines export identical units, labels and metadata at both dimensions, and their refinements reproduce the published files byte for byte.
+
 ### 39604 provenance
 
-`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix that `stark_large.jl` now carries; the fix changes only the conjugation stage, which ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. This repository's own scripts have not yet rebuilt it: we estimate it at 4–5 days of one 8-core machine with about 100 GiB of memory, about twice the prototype's stage total below, because `stark_large.jl` computes the units in one process rather than eight workers and cloud cores are slower. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
+`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix; the corrected conjugation ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. This repository's own scripts have not yet rebuilt it. Its rebuild time and peak memory with these scripts are unmeasured. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
 
 | stage | wall time (s) |
 |---|---:|
@@ -134,7 +145,7 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### Linux rebuild measurements
 
-`modal_rebuild.py` rebuilt each file from commit `d46d4dd`'s scripts (later commits on this branch change only docs) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used one language thread and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
+`modal_rebuild.py` rebuilt each file from commit `d46d4dd`'s scripts (before the direct-ghost change) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used one language thread and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
 
 | published file | run ID | construction (s) | refinement (s) | matching SHA-256 |
 |---|---|---:|---:|---|

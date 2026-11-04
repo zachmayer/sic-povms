@@ -1,8 +1,10 @@
 # Build a companion-form SIC seed by the Stark-unit method of stark.jl.
 # Run: julia --project=. --threads=1 --gcthreads=1 stark_large.jl DIMENSION [BITS=2048]
 #
-# To keep large d tractable, factor the cocycle along the label orbit, use FLINT
-# FFT residuals with a frozen Float64 QR, and stream units and normal-basis traces.
+# To keep large d tractable, factor the cocycle along the label orbit, evaluate
+# the double sine by a full-precision series, and stream units and normal-basis traces.
+# Build the ghost with 256 guard bits, then accept one FFT residual below
+# 2^(-bits+40) at working precision; no ghost Newton correction or dense Jacobian.
 # Refine the conjugate basis in BigFloat: Float64 traces lose digits when the
 # final tensor contraction cancels. reconstruct_large.py avoids a dense projector;
 # refine_large.py supplies the published precision. Their headers give the methods.
@@ -32,7 +34,7 @@ const cli_args = copy(ARGS)
 empty!(ARGS)
 include("stark.jl")
 using TOML, SHA
-import Nemo
+import Nemo, QuadGK
 using Nemo: AcbField, acb_struct
 
 const REPRESENTATIVES = TOML.parsefile(joinpath(@__DIR__, "representatives.toml"))
@@ -104,6 +106,75 @@ function arithmetic_generators(F)
     return mats,ords
 end
 
+"""Double-sine series for c=(β+1)/2, x=2(c-w), |x|≤1:
+log S₂(w;β,1) = -x*log(2)/2 + Σⱼ dⱼ*(x^(2j+1)-x), where
+ dⱼ = ∫₀∞ (t/2)^(2j+1) / ((2j+1)!*2t*sinh(βt/2)*sinh(t/2)) dt.
+The linear term uses S₂(β/2)=1/√2, avoiding singular-integral subtraction.
+Gauss–Legendre on dyadic intervals supplies the coefficients. Compare successive
+orders in ℓ₁ norm; bound both the polynomial tail and the omitted integral.
+These are numerical convergence checks, not interval certification.
+"""
+function double_sine_coefficients(b)
+    bits=precision(BigFloat)
+    coeff=setprecision(BigFloat,bits+128) do
+        β=(BigFloat(b)+sqrt(BigFloat(b)^2-4))/2
+        c=(β+1)/2
+        J=ceil(Int,(bits+96)/(2log2(2c)))
+        T=nextpow(2,max(1,ceil(Int,2*(bits+96)*log(BigFloat(2))/β)))
+        # For A=1/2, bound Σ_{m,n≥0}(c+mβ+n)^(-3) by z3 using integrals.
+        A=BigFloat(1)/2
+        z3=c^-3+(1+1/β)/(2c^2)+1/(2β*c)
+        polynomial_tail=4A^3*z3*(A/c)^(2J)/((2J+3)*(1-(A/c)^2))
+        integral_tail=4exp(-β*T/2)/(β*T*(1-exp(-β*T))*(1-exp(-BigFloat(T))))
+        tolerance=BigFloat(2)^(-bits-16)
+        polynomial_tail+integral_tail<tolerance || error("double-sine tail too large")
+        function integrate(order)
+            nodes,weights=QuadGK.gauss(BigFloat,order)
+            coeff=zeros(BigFloat,J)
+            for (lo,hi) in [(0,1);[(2^k,2^(k+1)) for k in 0:trailing_zeros(T)-1]]
+                mid=BigFloat(lo+hi)/2; half=BigFloat(hi-lo)/2
+                for i in eachindex(nodes)
+                    t=mid+half*nodes[i]
+                    v=half*weights[i]*t^2*exp(-c*t)/(24*expm1(-β*t)*expm1(-t))
+                    t2=t^2/4
+                    for j in 1:J
+                        coeff[j]+=v
+                        v*=t2/((2j+2)*(2j+3))
+                    end
+                end
+            end
+            [-log(BigFloat(2))/2-sum(coeff);coeff]
+        end
+        low=integrate(512)
+        for order in 768:256:2048
+            high=integrate(order)
+            delta=sum(abs,high-low)
+            println("DOUBLE_SINE order=$order terms=$J difference_log2=$(Float64(log2(delta))) tail_log2=$(Float64(log2(polynomial_tail+integral_tail)))")
+            flush(stdout)
+            delta<tolerance && return high
+            low=high
+        end
+        error("double-sine coefficient quadrature did not converge")
+    end
+    BigFloat.(coeff)
+end
+
+"stark.jl's sigma at full precision: shift to |x|≤1, evaluate the odd series by Horner, retain the q-Pochhammer phase."
+function sigma_series(z,β,coeff)
+    m=floor(Int,z/β)
+    z-=m*β
+    n=round(Int,(β+1)/2-z)-1
+    x=β+1-2(z+n+1)
+    abs(x)<=1+8eps(BigFloat) || error("double-sine argument outside series interval")
+    x2=x*x
+    v=coeff[end]
+    for j in length(coeff)-1:-1:1
+        v=muladd(v,x2,coeff[j])
+    end
+    qpoch(z,β,m)*qpoch(z/β,-1/β,-n)*
+        e((6(z+n)^2+6(1-β)*(z+n)+β^2-3β+1)/(24β))*exp(x*v)
+end
+
 """SF cocycle along the reduced label orbit of L=[b -1;1 0].
 
 At each step Lp = pnext + d*(s1,0); the integer shift changes the
@@ -111,41 +182,42 @@ first label only, so the exponential q-Pochhammer correction is one.
 The Jacobi cocycle telescopes to the modular cocycle for A=L^k.
 AFK equations (1.21), (1.22), (1.26), (8.4), and (8.9).
 """
-function orbit_shin(F, p1, p2)
+function orbit_shin(F, p1, p2, coeff)
     @assert F.Q.a == F.Q.c == 1
     @assert F.L == [Int(-F.Q.b) -1; 1 0]
     d, β, b = Int(F.d), F.x, Int(-F.Q.b)
     start = (p1,p2)
     val = one(Complex{BigFloat})
     for _ in 1:F.k
-        val *= sigma((p2*β-p1)/d,β)
+        val *= sigma_series((p2*β-p1)/d,β,coeff)
         p1,p2 = mod(b*p1-p2,d),p1
     end
     @assert (p1,p2) == start
     val
 end
 
-function ghost_nu(F,p1,p2)
+function ghost_nu(F,p1,p2,coeff)
     d,A = Int(F.d),F.A
     QA = QuadBin(A[2,1],A[2,2]-A[1,1],-A[1,2])
     ζ = -cispi(BigFloat(1)/d)
     c = -e(-BigFloat(rademacher(A))/24)/sqrt(BigFloat(d+1))
     s = iseven(d)*(p1+p2+p1*p2)
-    (-1)^s * ζ^(-BigFloat(QA(p1,p2))/(d*(d-2))) * c * orbit_shin(F,p1,p2)
+    (-1)^s * ζ^(-BigFloat(QA(p1,p2))/(d*(d-2))) * c * orbit_shin(F,p1,p2,coeff)
 end
 
-function cocycle_ghost(F)
+function cocycle_ghost(F,coeff)
     d = Int(F.d)
     χ = zeros(Complex{BigFloat},d,2)
     χ[1,1] = 1
     ζ = -cispi(BigFloat(1)/d)
     maximag = BigFloat(0)
     for (p1,p2) in Iterators.drop(Iterators.product(0:1,0:d-1),1)
-        ν = ghost_nu(F,p1,p2)
+        ν = ghost_nu(F,p1,p2,coeff)
         maximag = max(maximag,abs(imag(ν))/abs(ν))
         χ[p2+1,p1+1] = ζ^(p1*p2)*real(ν)
     end
     println("cocycle max relative imaginary part=$maximag")
+    maximag<BigFloat(2)^(-precision(BigFloat)+64) || error("cocycle imaginary part too large")
     χ = ifft(χ,1)
     ψ = sqrt(abs(χ[1,1]))*circshift(cumprod(χ[:,2]./χ[:,1]),1)
     ψ/ψ[1]
@@ -190,43 +262,6 @@ function ghost_residual_fft(z,ns)
     end
 end
 
-
-"""Full-space high-precision ghost residuals with a frozen Float64 QR solve.
-Scale residuals before conversion to avoid underflow. No inexact symmetry basis
-constrains the final vector. Abort if the residual fails to halve at a step;
-the Jacobian is not refreshed.
-"""
-function refine_ghost(ψ,bits)
-    setprecision(BigFloat,bits) do
-        z = BigFloat.(re_im_proj(ψ))
-        ns = equations(length(ψ))
-        println("building Float64 Jacobian $(length(ns)) x $(length(z))")
-        flush(stdout)
-        t = @elapsed J=qr!(ghost_jacobian(Float64.(z),ns))
-        diagonal=[abs(J.factors[i,i]) for i in 1:length(z)]
-        println("QR seconds=$t diagonal_ratio=$(minimum(diagonal)/maximum(diagonal))")
-        flush(stdout)
-        prev = big(Inf)
-        maxsteps=max(100,bits÷20)
-        for iter in 0:maxsteps
-            t = @elapsed r=ghost_residual_fft(z,ns)
-            res = maximum(abs,r)
-            println("bump iter=$iter bits=$bits residual=$(Float64(log2(res))) log2 seconds=$t")
-            flush(stdout)
-            path="data/ghost_$(bits)_progress.jls"
-            save_atomic(path,re_im_proj(z))
-            if res < big(2.0)^(-bits+40)
-                return re_im_proj(z)
-            end
-            res < prev/2 || error("Float64 inverse stalled at iteration $iter")
-            scale = big(2.0)^floor(Int,log2(res))
-            delta = J\Float64.(r/scale)
-            z -= scale*BigFloat.(delta)
-            prev=res
-        end
-        error("ghost refinement exhausted $maxsteps steps")
-    end
-end
 
 "Selected real ghost overlaps, one FLINT transform per row; discard unused entries."
 function ghost_units_stream(ψ,P,checkpoint_dir)
@@ -448,11 +483,16 @@ end
 function run_construct(d,bits)
     root=pwd()
     work=abspath(get(ENV,"LARGE_D_WORK",joinpath(root,"large_d_work","d$d")))
-    mkpath(joinpath(work,"data"))
+    mkpath(work)
     cd(work)
     BLAS.set_num_threads(parse(Int,get(ENV,"SIC_BLAS_THREADS","1")))
     randseed!(0); seed!(0)
-    F=companion_form(d)
+    F=setprecision(BigFloat,bits+256) do
+        F=companion_form(d)
+        β=(BigFloat(-F.Q.b)+sqrt(BigFloat(F.Q.b)^2-4))/2
+        @assert precision(F.x)==bits+256 && F.x==β
+        F
+    end
     check_configuration(d,bits)
     @assert !has_fa_symmetry(F)
     println("START d=$d q=$(F.q) f=$(F.f) bits=$bits blas=$(BLAS.get_num_threads())")
@@ -463,19 +503,18 @@ function run_construct(d,bits)
         S=check_generators(F,mats,ords,P)
         mats,ords,P,S
     end
-    initial=stage("initial") do
-        setprecision(BigFloat,128) do
-            cocycle_ghost(F)
-        end
-    end
     ψ=stage("ghost_$bits") do
-        progress="data/ghost_$(bits)_progress.jls"
-        if isfile(progress)
-            start=deserialize(progress)
-        else
-            start=initial
+        guarded=setprecision(BigFloat,bits+256) do
+            coeff=double_sine_coefficients(Int(-F.Q.b))
+            cocycle_ghost(F,coeff)
         end
-        refine_ghost(start,bits)
+        setprecision(BigFloat,bits) do
+            ψ=[complex(BigFloat(real(z);precision=bits),BigFloat(imag(z);precision=bits)) for z in guarded]
+            residual=maximum(abs,ghost_residual_fft(re_im_proj(ψ),equations(d)))
+            println("GHOST residual_log2=$(Float64(log2(residual)))")
+            residual<BigFloat(2)^(-bits+40) || error("direct ghost residual too large")
+            ψ
+        end
     end
     setprecision(BigFloat,bits) do
         u=stage("units_$bits") do
