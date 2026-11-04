@@ -1,6 +1,6 @@
 # Export a companion-form SIC orbit by the Stark-unit method of stark.jl.
-# Run: julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=60G stark_large.jl DIMENSION units [BITS=2048]
-# Then: julia --project=. --threads=1 --gcthreads=1 --heap-size-hint=64G stark_large.jl DIMENSION tensors [BITS=2048]
+# Run: julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=4G stark_large.jl DIMENSION units [BITS=2048]
+# Then: julia --project=. --threads=1 --gcthreads=1 --heap-size-hint=4G stark_large.jl DIMENSION tensors [BITS=2048]
 # Then run reconstruct_large.py as in README, after Julia exits and releases its heap.
 #
 # To keep large d tractable, factor the cocycle along the label orbit, evaluate
@@ -40,13 +40,15 @@
 const cli_args = copy(ARGS)
 # Empty ARGS so including stark.jl loads helpers without running its top-level loop.
 empty!(ARGS)
-# Use Nemo's normal GMP allocators: the counted hooks inflate Julia's live-heap
-# estimate after DFTs, defeating its heap hint. FLINT itself stays single-threaded.
+# Nemo's threaded mode points GMP at plain malloc, process-wide: GMP/FLINT temporaries
+# stop counting toward Julia's GC heap, which otherwise balloons after DFTs and
+# defeats the heap hint. FLINT itself stays single-threaded.
 ENV["NEMO_THREADED"]="1"
 include("stark.jl")
 using TOML, SHA
 import Nemo, QuadGK
 using Nemo: AcbField, acb_struct
+Nemo.__isthreaded[] || error("Nemo loaded before NEMO_THREADED was set")
 
 const REPRESENTATIVES = TOML.parsefile(joinpath(@__DIR__, "representatives.toml"))
 const LIVE_BITS = 128
@@ -289,7 +291,6 @@ function ghost_units_stream(ψ,P,checkpoint_dir)
     end
     mkpath(checkpoint_dir)
     u=Array{BigFloat}(undef,size(P))
-    checkpoint_lock=ReentrantLock()
     Threads.@threads :dynamic for firstrow in 0:32:d-1
         lastrow=min(d-1,firstrow+31)
         path=joinpath(checkpoint_dir,"rows_$(firstrow)_$(lastrow).jls")
@@ -308,11 +309,9 @@ function ghost_units_stream(ψ,P,checkpoint_dir)
                 end
                 append!(indices,rows[a+1])
             end
-            lock(checkpoint_lock) do
-                save_atomic(path,(indices,values))
-                println("ghost overlap rows=$firstrow:$lastrow/$d")
-                flush(stdout)
-            end
+            save_atomic(path,(indices,values))
+            println("ghost overlap rows=$firstrow:$lastrow/$d")
+            flush(stdout)
         end
         u[indices]=values
     end
@@ -391,7 +390,7 @@ function trace_product(T,x,prefix,units_path)
         println("TRACE axis=$j seconds=$t maxrss=$(Sys.maxrss())")
         flush(stdout)
     end
-    mv(path,"$prefix.jls";force=true)
+    Base.Filesystem.rename(path,"$prefix.jls")
     T
 end
 
@@ -501,9 +500,17 @@ function standard_map(F)
 end
 
 
+"Write, sync to the drive, then rename: later stages delete the predecessor."
 function save_atomic(path,x)
-    serialize(path*".part",x)
-    mv(path*".part",path;force=true)
+    open(path*".part","w") do io
+        serialize(io,x)
+        flush(io)
+        # F_FULLFSYNC (51) reaches the macOS drive, not only its cache; fsync elsewhere.
+        status=Sys.isapple() ? @ccall(fcntl(fd(io)::RawFD,51::Cint;0::Cint)::Cint) :
+                               @ccall(fsync(fd(io)::RawFD)::Cint)
+        status==0 || error("sync failed: $path")
+    end
+    Base.Filesystem.rename(path*".part",path)
     x
 end
 
@@ -622,7 +629,6 @@ function run_construct(d,bits,phase)
             squared_modulus_error=maximum(abs,abs2.(uu).-(d+1))
             println("CONJUGATION bits=$b squared_modulus_error=$squared_modulus_error"); flush(stdout)
             squared_modulus_error<squared_modulus_tolerance && break
-            rm("liveunits_$(bits)_$b.jls")
             uu=nothing
         end
         uu!==nothing && squared_modulus_error<squared_modulus_tolerance || error("Conjugation squared-modulus check failed")
