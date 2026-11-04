@@ -1,5 +1,7 @@
-# Build a companion-form SIC seed by the Stark-unit method of stark.jl.
-# Run: julia --project=. --threads=1 --gcthreads=1 stark_large.jl DIMENSION [BITS=2048]
+# Export a companion-form SIC orbit by the Stark-unit method of stark.jl.
+# Run: julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=60G stark_large.jl DIMENSION units [BITS=2048]
+# Then: julia --project=. --threads=1 --gcthreads=1 --heap-size-hint=64G stark_large.jl DIMENSION tensors [BITS=2048]
+# Then run reconstruct_large.py as in README, after Julia exits and releases its heap.
 #
 # To keep large d tractable, factor the cocycle along the label orbit, evaluate
 # the double sine by a full-precision series, and stream units and normal-basis traces.
@@ -10,6 +12,10 @@
 # Refine the conjugate basis in BigFloat: Float64 traces lose digits when the
 # final tensor contraction cancels. reconstruct_large.py avoids a dense projector;
 # refine_large.py supplies the published precision. Their headers give the methods.
+# Rows share read-only labels; Julia 1.13 scoped precision and TLS-enabled MPFR/FLINT
+# keep their arithmetic independent. Tensor axes overwrite slices with the same H*v.
+# Checkpoints retain one predecessor; a failed conjugation reloads the trace.
+# Separate processes release the row workspace before tensor work.
 #
 # Canonical choices for dimensions without a representatives.toml pin:
 # * For (d+1)(d-3)=D*f^2, take the least b>=3 with b^2-4=D*q^2, q|f, and
@@ -34,6 +40,9 @@
 const cli_args = copy(ARGS)
 # Empty ARGS so including stark.jl loads helpers without running its top-level loop.
 empty!(ARGS)
+# Use Nemo's normal GMP allocators: the counted hooks inflate Julia's live-heap
+# estimate after DFTs, defeating its heap hint. FLINT itself stays single-threaded.
+ENV["NEMO_THREADED"]="1"
 include("stark.jl")
 using TOML, SHA
 import Nemo, QuadGK
@@ -280,7 +289,8 @@ function ghost_units_stream(ψ,P,checkpoint_dir)
     end
     mkpath(checkpoint_dir)
     u=Array{BigFloat}(undef,size(P))
-    for firstrow in 0:32:d-1
+    checkpoint_lock=ReentrantLock()
+    Threads.@threads :dynamic for firstrow in 0:32:d-1
         lastrow=min(d-1,firstrow+31)
         path=joinpath(checkpoint_dir,"rows_$(firstrow)_$(lastrow).jls")
         if isfile(path)
@@ -298,9 +308,11 @@ function ghost_units_stream(ψ,P,checkpoint_dir)
                 end
                 append!(indices,rows[a+1])
             end
-            save_atomic(path,(indices,values))
-            println("ghost overlap rows=$firstrow:$lastrow/$d")
-            flush(stdout)
+            lock(checkpoint_lock) do
+                save_atomic(path,(indices,values))
+                println("ghost overlap rows=$firstrow:$lastrow/$d")
+                flush(stdout)
+            end
         end
         u[indices]=values
     end
@@ -344,25 +356,42 @@ function normal_bases(u,recipes)
     [basis_marginal(u,j,recipes[j]) for j in 1:ndims(u)]
 end
 
-function trace_product(u,x,prefix)
-    T=u
+"Overwrite independent axis slices; keep H*v's multiplication and summation order."
+function tensor_axis!(T,H,j,::Type{S}=eltype(T)) where S
+    n=size(T,j)
+    stride=prod(size(T)[1:j-1])
+    v=Vector{S}(undef,n)
+    for offset in 0:n*stride:length(T)-1, i in 1:stride
+        for k in 1:n
+            v[k]=T[offset+i+(k-1)*stride]
+        end
+        w=H*v
+        for k in 1:n
+            T[offset+i+(k-1)*stride]=w[k]
+        end
+    end
+    T
+end
+
+function trace_product(T,x,prefix,units_path)
     start=1
     path="$(prefix)_rolling.jls"
     if isfile(path)
         last,T=deserialize(path)
         start=last+1
+        isfile(units_path) && rm(units_path)
         println("RESUME trace at axis=$start")
     end
-    for j in start:ndims(u)
-        t=@elapsed begin
-            H=hankel(x[j])
-            T=mapslices(v->H*v,T;dims=j)
-        end
+    for j in start:ndims(T)
+        t=@elapsed tensor_axis!(T,hankel(x[j]),j)
         save_atomic(path,(j,T))
+        # A complete rolling trace can resume without the raw units.
+        isfile(units_path) && rm(units_path)
         GC.gc()
         println("TRACE axis=$j seconds=$t maxrss=$(Sys.maxrss())")
         flush(stdout)
     end
+    mv(path,"$prefix.jls";force=true)
     T
 end
 
@@ -396,11 +425,19 @@ function conjugate_units(σ,trace,forms_x)
     end
     # Recognition must retain the caller's working precision. Only its result
     # is rounded; lowering precision around σ itself corrupts integer rounding.
-    transformed=map(v->BigFloat(σ(v);precision=LIVE_BITS),trace)
-    live=setprecision(BigFloat,LIVE_BITS) do
-        hankel_prod(transformed,y)
+    # The first axis reads reals and writes complexes. A union element type keeps
+    # the same storage throughout, without changing that first H*v's arithmetic.
+    # Consume recognized entries as we go; the checkpoint supplies retries.
+    map!(v->BigFloat(σ(v);precision=LIVE_BITS),trace[],trace[])
+    transformed=Array{Union{BigFloat,Complex{BigFloat}}}(trace[])
+    trace[]=nothing
+    GC.gc()
+    setprecision(BigFloat,LIVE_BITS) do
+        for j in 1:ndims(transformed)
+            tensor_axis!(transformed,hankel(y[j]),j,j==1 ? BigFloat : Complex{BigFloat})
+        end
     end
-    ComplexF64.(live)
+    ComplexF64.(transformed)
 end
 
 function generator_orbit(F,mats,ords)
@@ -479,13 +516,16 @@ function stage(f,name)
     GC.gc()
     start=time()
     x=f()
+    GC.gc() # discard stage workspace before allocating the checkpoint's identity table
     save_atomic(path,x)
     println("STAGE name=$name seconds=$(time()-start) maxrss=$(Sys.maxrss())")
     flush(stdout)
     x
 end
 
-function run_construct(d,bits)
+function run_construct(d,bits,phase)
+    phase in ("units","tensors") || error("phase must be units or tensors")
+    phase=="tensors" && Threads.nthreads()!=1 && error("run the tensor phase with --threads=1")
     root=pwd()
     work=abspath(get(ENV,"LARGE_D_WORK",joinpath(root,"large_d_work","d$d")))
     mkpath(work)
@@ -499,8 +539,10 @@ function run_construct(d,bits)
         F
     end
     check_configuration(d,bits)
+    phase=="tensors" && !any(isfile,("units_$bits.jls","trace_$bits.jls","trace_$(bits)_rolling.jls")) &&
+        error("run the units phase first")
     @assert !has_fa_symmetry(F)
-    println("START d=$d q=$(F.q) f=$(F.f) bits=$bits blas=$(BLAS.get_num_threads())")
+    println("START d=$d phase=$phase q=$(F.q) f=$(F.f) bits=$bits threads=$(Threads.nthreads()) heap=$(Base.JLOptions().heap_size_hint) blas=$(BLAS.get_num_threads())")
     flush(stdout)
     mats,ords,P,S=stage("group") do
         mats,ords=arithmetic_generators(F)
@@ -523,29 +565,42 @@ function run_construct(d,bits)
         end
     end
     setprecision(BigFloat,bits) do
-        u=stage("units_$bits") do
-            ghost_units_stream(ψ,P,"units_$(bits)_rows")
+        trace_path="trace_$bits.jls"
+        units_path="units_$bits.jls"
+        rows_path="units_$(bits)_rows"
+        u=if isfile(trace_path) || isfile("trace_$(bits)_rolling.jls") || (phase=="units" && isfile(units_path))
+            nothing
+        else
+            stage("units_$bits") do
+                ghost_units_stream(ψ,P,rows_path)
+            end
         end
+        isfile(units_path) && isdir(rows_path) && rm(rows_path;recursive=true)
+        phase=="units" && return
         recipes=stage("recipes_$bits") do
             streamed_normal_recipes(u,d)
         end
         x=stage("bases_$bits") do
             normal_bases(u,recipes)
         end
-        trace=stage("trace_$bits") do
-            trace_product(u,x,"trace_$bits")
+        s,unit_max=stage("unit_stats_$bits") do
+            sum(abs2,u),maximum(abs,u)
         end
+        start=time()
+        trace=Ref{Any}(isfile(trace_path) ? last(deserialize(trace_path)) :
+                       trace_product(u,x,"trace_$bits",units_path))
+        u=nothing
+        GC.gc()
+        println("STAGE name=trace_$bits seconds=$(time()-start) maxrss=$(Sys.maxrss())")
+        flush(stdout)
         forms_x=stage("forms_$bits") do
             forms.(x)
         end
-        top=max(maximum(abs,trace),maximum(maximum(abs,X) for X in Iterators.flatten(forms_x)))
+        top=max(maximum(abs,trace[]),maximum(maximum(abs,X) for X in Iterators.flatten(forms_x)))
         relation_bits=2Int(F.h)*(ceil(Int,log2(top))+40)
-        println("PRECISION relation_bits=$relation_bits working_bits=$bits unit_max_log2=$(Float64(log2(maximum(abs,u))))")
+        println("PRECISION relation_bits=$relation_bits working_bits=$bits unit_max_log2=$(Float64(log2(unit_max)))")
         flush(stdout)
         1.5relation_bits+100<bits || error("Need more ghost precision: rerun with at least $(ceil(Int,1.5relation_bits+200)) bits")
-        s=sum(abs2,u)
-        u=nothing
-        GC.gc()
         # Hecke's embedding caches contain process-local C state. Rebuild this
         # small object; Julia serialization is safe for the numerical tensors.
         H=classfield(F)
@@ -554,8 +609,11 @@ function run_construct(d,bits)
         squared_modulus_tolerance=64eps(Float64)*(d+1)
         for b in unique(min.(round.(Int,relation_bits.*1.5.^(0:3)),bits-100))
             uu=stage("liveunits_$(bits)_$b") do
+                trace[]===nothing && (trace[]=last(deserialize(trace_path)))
                 conjugate_units(conjugator(H,F,b,s),trace,forms_x)
             end
+            trace[]=nothing
+            GC.gc()
             if uu===nothing
                 println("CONJUGATION bits=$b insufficient relation precision; advancing precision")
                 flush(stdout)
@@ -564,6 +622,8 @@ function run_construct(d,bits)
             squared_modulus_error=maximum(abs,abs2.(uu).-(d+1))
             println("CONJUGATION bits=$b squared_modulus_error=$squared_modulus_error"); flush(stdout)
             squared_modulus_error<squared_modulus_tolerance && break
+            rm("liveunits_$(bits)_$b.jls")
+            uu=nothing
         end
         uu!==nothing && squared_modulus_error<squared_modulus_tolerance || error("Conjugation squared-modulus check failed")
         export_dir="export"
@@ -579,12 +639,11 @@ function run_construct(d,bits)
         flush(stdout)
     end
     cd(root)
-    run(`uv run $(joinpath(@__DIR__,"reconstruct_large.py")) $(joinpath(work,"export")) --work $(joinpath(work,"reconstruction")) --output $(joinpath(root,"fiducial_$(d)_stark.txt"))`)
 end
 
 # Run only as a script, so test_conjugation.jl can include the helpers.
 if abspath(PROGRAM_FILE) == @__FILE__
-    length(cli_args) in (1,2) || error("usage: stark_large.jl DIMENSION [BITS=2048]")
-    run_construct(parse(Int,cli_args[1]),length(cli_args)==2 ? parse(Int,cli_args[2]) : 2048)
+    length(cli_args) in (2,3) || error("usage: stark_large.jl DIMENSION units|tensors [BITS=2048]")
+    run_construct(parse(Int,cli_args[1]),length(cli_args)==3 ? parse(Int,cli_args[3]) : 2048,cli_args[2])
     println("PROCESS maxrss=$(Sys.maxrss())")
 end

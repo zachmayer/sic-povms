@@ -55,11 +55,14 @@ For the large-d companion-form construction:
 
 ```sh
 d=5779
-julia --project=. --threads=1 --gcthreads=1 stark_large.jl "$d"
+work="${LARGE_D_WORK:-large_d_work/d$d}"
+LARGE_D_WORK="$work" julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=4G stark_large.jl "$d" units
+LARGE_D_WORK="$work" julia --project=. --threads=1 --gcthreads=1 --heap-size-hint=4G stark_large.jl "$d" tensors
+uv run reconstruct_large.py "$work/export" --work "$work/reconstruction" --output "fiducial_${d}_stark.txt"
 uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
-`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, supply the second positional argument and a fresh work directory. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints. A Julia source, platform or precision mismatch needs a fresh `LARGE_D_WORK`; for a reconstruction or refinement mismatch, move that subdirectory aside or pass `refine_large.py` a fresh `--work`. Otherwise rerun the same commands to resume.
+`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, append the bit count after the phase in both commands and use a fresh work directory. For d = 57966 on a 96 GB machine, use a 60G heap hint for units and 64G for tensors. Unit rows use up to eight Julia threads; tensor work starts in a fresh single-threaded process. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints. A Julia source, platform or precision mismatch needs a fresh `LARGE_D_WORK`; for a reconstruction or refinement mismatch, move that subdirectory aside or pass `refine_large.py` a fresh `--work`. Otherwise rerun the same commands to resume.
 
 For the published Fibonacci file:
 

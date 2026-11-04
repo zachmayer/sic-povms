@@ -7,7 +7,8 @@
 uv run test_large.py --work /absolute/path/outside/repo
 
 Requires Julia on PATH and the repository's Julia/Python packages installed.
-Runs fresh d=19 (odd, q=1) and d=48 (even, q=3), verifies their saved digits
+Runs fresh d=19 (odd, q=1) and d=48 (even, q=3), compares one/two-thread construction,
+starts tensors and reconstruction in fresh processes, and verifies their saved digits
 independently, then exercises the Modal worker's actual logic with interruption,
 continuation, fresh construction and committed-hash comparison. Interrupt a
 two-worker refinement after a gradient shard saves numerical progress, resume
@@ -87,7 +88,7 @@ def main() -> None:
                        JULIA_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", MKL_NUM_THREADS="1")
     fixture = work / "fixture"
     shutil.copytree(ROOT, fixture, ignore=shutil.ignore_patterns(*COPY_IGNORE))
-    checked(["julia", "--project=.", "--threads=1", "--gcthreads=1", "test_conjugation.jl"],
+    checked(["julia", "--project=.", "--threads=1", "--gcthreads=1", "--heap-size-hint=4G", "test_conjugation.jl"],
             fixture, environment, work / "conjugation.log")
     results = {}
     for d in (19, 48):
