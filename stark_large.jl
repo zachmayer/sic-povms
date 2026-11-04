@@ -97,6 +97,13 @@ function arithmetic_generators(F)
     # A = a*I + y*L with L[2,2] = 0, so a = A[2,2] and y = A[2,1]; L acts as beta.
     generator = anti ? A[2,2]+A[2,1]*beta : beta
     G,pi=quo(UR,[preimage(ur,R(O(generator)))])
+    # Integer pre-check for the search below: a+y*beta can have order n in G only
+    # if its matrix to the n-th power lies in the stabilizer it quotients by.
+    L=mod.(Int.(F.L),dd)
+    stabilizer=[Matrix{Int}(I,2,2)]
+    while (P=mod.(stabilizer[end]*(anti ? mod.(Int.(A),dd) : L),dd))!=I
+        push!(stabilizer,P)
+    end
     chosen=typeof(zero(G))[]
     mats,ords=Matrix{Int}[],Int[]
     remaining,projection=quo(G,chosen)
@@ -106,9 +113,11 @@ function arithmetic_generators(F)
         function first_axis()
             for a in 0:dd-1,y in 0:dd-1
                 gcd(a*a+b*a*y+y*y,dd)==1 || continue
+                M=mod.(a*Matrix{Int}(I,2,2)+y*L,dd)
+                foldl((P,_)->mod.(P*M,dd),1:n;init=Matrix{Int}(I,2,2)) in stabilizer || continue
                 g=pi(preimage(ur,R(O(a+y*beta))))
                 order(g)==n && order(projection(g))==n || continue
-                return g,mod.(a*Matrix{Int}(I,2,2)+y*Int.(F.L),dd)
+                return g,M
             end
             error("no direct cyclic complement of order $n")
         end
