@@ -59,7 +59,7 @@ julia --project=. --threads=1 --gcthreads=1 stark_large.jl "$d"
 uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
-`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, supply the second positional argument and a fresh work directory. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints; if a stage rejects a resume, move its subdirectory of the work directory aside (or pass `refine_large.py` a fresh `--work`). Otherwise rerun the same commands to resume.
+`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, supply the second positional argument and a fresh work directory. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints. A Julia source, platform or precision mismatch needs a fresh `LARGE_D_WORK`; for a reconstruction or refinement mismatch, move that subdirectory aside or pass `refine_large.py` a fresh `--work`. Otherwise rerun the same commands to resume.
 
 For the published Fibonacci file:
 

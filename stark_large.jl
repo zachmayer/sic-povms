@@ -3,8 +3,10 @@
 #
 # To keep large d tractable, factor the cocycle along the label orbit, evaluate
 # the double sine by a full-precision series, and stream units and normal-basis traces.
-# Build the ghost with 256 guard bits, then accept one FFT residual below
-# 2^(-bits+40) at working precision; no ghost Newton correction or dense Jacobian.
+# Build the ghost with 256 guard bits (the cocycle loses about 40 bits at d = 5779),
+# then accept one FFT residual below 2^(-bits+40) at working precision. The series
+# coefficients carry 128 more bits, so successive quadrature orders can agree below
+# the guarded precision.
 # Refine the conjugate basis in BigFloat: Float64 traces lose digits when the
 # final tensor contraction cancels. reconstruct_large.py avoids a dense projector;
 # refine_large.py supplies the published precision. Their headers give the methods.
@@ -106,13 +108,17 @@ function arithmetic_generators(F)
     return mats,ords
 end
 
-"""Double-sine series for c=(β+1)/2, x=2(c-w), |x|≤1:
-log S₂(w;β,1) = -x*log(2)/2 + Σⱼ dⱼ*(x^(2j+1)-x), where
- dⱼ = ∫₀∞ (t/2)^(2j+1) / ((2j+1)!*2t*sinh(βt/2)*sinh(t/2)) dt.
-The linear term uses S₂(β/2)=1/√2, avoiding singular-integral subtraction.
+"""Double-sine series for c=(β+1)/2, x=2(c-w), |x|≤1 (radius of convergence β+1):
+log S₂(w;β,1) = -x*log(2)/2 + Σ_{j≥1} dⱼ*(x^(2j+1)-x), where
+ dⱼ = ∫₀∞ (t/2)^(2j+1) / ((2j+1)!*2t*sinh(βt/2)*sinh(t/2)) dt
+    = 2/(2j+1) * Σ_{m,n≥0} (2(c+mβ+n))^-(2j+1).
+S₂ is Zauner.double_sine (Shintani's convention); AFK §8.2 writes its reciprocal.
+S₂(w)S₂(β+1-w)=1 and S₂(w+1)=2sin(πw/β)S₂(w) at w=β/2 give S₂(β/2)=1/√2, so the
+linear term needs no singular-integral subtraction.
 Gauss–Legendre on dyadic intervals supplies the coefficients. Compare successive
 orders in ℓ₁ norm; bound both the polynomial tail and the omitted integral.
-These are numerical convergence checks, not interval certification.
+These are numerical convergence checks, not interval certification. Large b
+(b = 299 at 2048 bits) fails the convergence check; the dimensions here have b ≤ 7.
 """
 function double_sine_coefficients(b)
     bits=precision(BigFloat)
@@ -120,17 +126,16 @@ function double_sine_coefficients(b)
         β=(BigFloat(b)+sqrt(BigFloat(b)^2-4))/2
         c=(β+1)/2
         J=ceil(Int,(bits+96)/(2log2(2c)))
-        T=nextpow(2,max(1,ceil(Int,2*(bits+96)*log(BigFloat(2))/β)))
-        # For A=1/2, bound Σ_{m,n≥0}(c+mβ+n)^(-3) by z3 using integrals.
-        A=BigFloat(1)/2
+        T=nextpow(2,ceil(Int,2*(bits+96)*log(BigFloat(2))/β))
+        # Bound Σ_{m,n≥0}(c+mβ+n)^(-3) by z3 using integrals.
         z3=c^-3+(1+1/β)/(2c^2)+1/(2β*c)
-        polynomial_tail=4A^3*z3*(A/c)^(2J)/((2J+3)*(1-(A/c)^2))
+        polynomial_tail=z3/(2*(2J+3)*(2c)^(2J)*(1-(2c)^-2))
         integral_tail=4exp(-β*T/2)/(β*T*(1-exp(-β*T))*(1-exp(-BigFloat(T))))
         tolerance=BigFloat(2)^(-bits-16)
         polynomial_tail+integral_tail<tolerance || error("double-sine tail too large")
         function integrate(order)
             nodes,weights=QuadGK.gauss(BigFloat,order)
-            coeff=zeros(BigFloat,J)
+            dj=zeros(BigFloat,J)
             for (lo,hi) in [(0,1);[(2^k,2^(k+1)) for k in 0:trailing_zeros(T)-1]]
                 mid=BigFloat(lo+hi)/2; half=BigFloat(hi-lo)/2
                 for i in eachindex(nodes)
@@ -138,18 +143,19 @@ function double_sine_coefficients(b)
                     v=half*weights[i]*t^2*exp(-c*t)/(24*expm1(-β*t)*expm1(-t))
                     t2=t^2/4
                     for j in 1:J
-                        coeff[j]+=v
+                        dj[j]+=v
                         v*=t2/((2j+2)*(2j+3))
                     end
                 end
             end
-            [-log(BigFloat(2))/2-sum(coeff);coeff]
+            [-log(BigFloat(2))/2-sum(dj);dj]
         end
+        println("DOUBLE_SINE terms=$J cutoff=$T tail_log2=$(Float64(log2(polynomial_tail+integral_tail)))")
         low=integrate(512)
         for order in 768:256:2048
             high=integrate(order)
             delta=sum(abs,high-low)
-            println("DOUBLE_SINE order=$order terms=$J difference_log2=$(Float64(log2(delta))) tail_log2=$(Float64(log2(polynomial_tail+integral_tail)))")
+            println("DOUBLE_SINE order=$order difference_log2=$(Float64(log2(delta)))")
             flush(stdout)
             delta<tolerance && return high
             low=high
@@ -159,20 +165,17 @@ function double_sine_coefficients(b)
     BigFloat.(coeff)
 end
 
-"stark.jl's sigma at full precision: shift to |x|≤1, evaluate the odd series by Horner, retain the q-Pochhammer phase."
+"""stark.jl's sigma at full precision: shift to |x|≤1, evaluate the odd series, retain the
+q-Pochhammer phase. The integer shift n differs from stark.jl's; the q-Pochhammer and phase
+factors compensate, so the product is the same."""
 function sigma_series(z,β,coeff)
     m=floor(Int,z/β)
     z-=m*β
     n=round(Int,(β+1)/2-z)-1
     x=β+1-2(z+n+1)
     abs(x)<=1+8eps(BigFloat) || error("double-sine argument outside series interval")
-    x2=x*x
-    v=coeff[end]
-    for j in length(coeff)-1:-1:1
-        v=muladd(v,x2,coeff[j])
-    end
     qpoch(z,β,m)*qpoch(z/β,-1/β,-n)*
-        e((6(z+n)^2+6(1-β)*(z+n)+β^2-3β+1)/(24β))*exp(x*v)
+        e((6(z+n)^2+6(1-β)*(z+n)+β^2-3β+1)/(24β))*exp(x*evalpoly(x*x,coeff))
 end
 
 """SF cocycle along the reduced label orbit of L=[b -1;1 0].
@@ -217,6 +220,8 @@ function cocycle_ghost(F,coeff)
         χ[p2+1,p1+1] = ζ^(p1*p2)*real(ν)
     end
     println("cocycle max relative imaginary part=$maximag")
+    # 64 bits cover the phase ζ^(QA/(d(d-2))), whose argument grows like |A| (about 2^47.5 at
+    # d = 57966). This checks phases only: the series enters as a real factor.
     maximag<BigFloat(2)^(-precision(BigFloat)+64) || error("cocycle imaginary part too large")
     χ = ifft(χ,1)
     ψ = sqrt(abs(χ[1,1]))*circshift(cumprod(χ[:,2]./χ[:,1]),1)
@@ -509,6 +514,7 @@ function run_construct(d,bits)
             cocycle_ghost(F,coeff)
         end
         setprecision(BigFloat,bits) do
+            # Round explicitly: Complex{BigFloat}.() would keep the guarded precision.
             ψ=[complex(BigFloat(real(z);precision=bits),BigFloat(imag(z);precision=bits)) for z in guarded]
             residual=maximum(abs,ghost_residual_fft(re_im_proj(ψ),equations(d)))
             println("GHOST residual_log2=$(Float64(log2(residual)))")
