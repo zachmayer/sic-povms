@@ -82,10 +82,13 @@ def main() -> None:
         parser.error("Keep acceptance artifacts outside the repository")
     work.mkdir(parents=True, exist_ok=False)
     environment = os.environ.copy()
+    environment.pop("LARGE_D_WORK", None)
     environment.update(SIC_BLAS_THREADS="1", OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1",
                        JULIA_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", MKL_NUM_THREADS="1")
     fixture = work / "fixture"
     shutil.copytree(ROOT, fixture, ignore=shutil.ignore_patterns(*COPY_IGNORE))
+    checked(["julia", "--project=.", "--threads=1", "--gcthreads=1", "test_conjugation.jl"],
+            fixture, environment, work / "conjugation.log")
     results = {}
     for d in (19, 48):
         filename = f"fiducials/fiducial_{d}.txt"

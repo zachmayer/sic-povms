@@ -152,6 +152,15 @@ def double_precision_file(psi: np.ndarray) -> str:
     return fiducial_text([(Fraction(z.real), Fraction(z.imag)) for z in scott_convention(psi)], 17)
 
 
+def write_seed(path: Path, psi: np.ndarray) -> None:
+    """Seed for refine_large.py. Same format as double_precision_file, but normalizes before fixing the
+    phase: the large-d seeds were written this way and their published bytes depend on it."""
+    psi = psi / np.linalg.norm(psi)
+    psi *= np.conj(psi[0]) / abs(psi[0])
+    path.write_bytes(fiducial_text([(Fraction(float(z.real)), Fraction(0) if j == 0 else Fraction(float(z.imag)))
+                                  for j, z in enumerate(psi)], 17).encode("ascii"))
+
+
 def scott_number(x: Fraction, digits: int) -> str:
     """x as '+.<digits>e<exponent>', correctly rounded (half-even), as in Scott and Grassl's files."""
     if x == 0:

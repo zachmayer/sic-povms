@@ -9,9 +9,9 @@ This repo gives numerical fiducials for every d from 197 to 300, and for d = 220
 
 We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. Of the larger dimensions, SICs were known before in 2208, 5779 and 39604 (we found no posted 39604 fiducial); we found none in 15128 ([literature status](RESULTS.md#literature-status)).
 
-There are 109 files in 108 dimensions: 108 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace.
+There are 109 files in 108 dimensions: 108 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace (ω = e^(2πi/3)).
 
-This repo supplies explicit fiducials. [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf) claims the results needed for Zauner's conjecture in general; we have not checked it.
+This repo supplies explicit fiducials. Radchenko and Wheeler's [*Real quadratic fields and finite quantum dilogarithms I*](https://arxiv.org/abs/2609.21892) and [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf) claim the results needed for Zauner's conjecture in general; we have not checked them.
 
 *Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote `stark.jl` (from Argon's), `search.py`, `refine.py` and this README; GPT-6 Astra found both d = 2208 SICs; GPT-6 wrote the FFT verifier and the large-d pipeline, found d = 5779 and 15128, and fixed the conjugation precision that d = 39604 needed.*
 
@@ -32,7 +32,7 @@ The precise mode bounds errors in the saved decimal coordinates; these remain nu
 
 **The other 103 in 197..300:** `stark.jl` implements the algebraic method of [Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), using Flammia's [Zauner.jl](https://github.com/sflammia/Zauner.jl), pinned by commit. Its comments explain the replacements for costly library steps and its canonical representative rule. `refine.py` takes the resulting seed to the published precision.
 
-**Large dimensions:** `stark_large.jl` uses a companion-form cocycle and streamed trace calculations. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. All four published standard-Zauner large-d files retain an unpublished prototype's integer quotient coordinates and determinant shifts in `representatives.toml`; the Julia header states the rule for unpinned dimensions. `test_large.py` tests that rule at small d. The 39604 file comes from the prototype these scripts were ported from; its rebuild with them is deferred ([provenance](RESULTS.md#39604-provenance)).
+**Large dimensions:** `stark_large.jl` uses a companion-form cocycle and streamed trace calculations. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. Pin rationale is in `representatives.toml`; the Julia header states the unpinned rule tested by `test_large.py`. The 39604 file comes from the prototype these scripts were ported from; its rebuild with them is deferred ([provenance](RESULTS.md#39604-provenance)).
 
 **Fibonacci 2208:** `fibonacci_2208.py` searches the antiunitary fixed space subject to alignment constraints, with its prototype's ambient random seed fixed in the script. It uses the same large-d refiner.
 
@@ -59,7 +59,7 @@ julia --project=. --threads=1 --gcthreads=1 stark_large.jl "$d"
 uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
-`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, supply the second positional argument and a fresh work directory. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Checkpoints bind inputs and settings to the code. Use fresh directories after source or platform changes; otherwise rerun the same commands to resume.
+`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, supply the second positional argument and a fresh work directory. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints; if a stage rejects a resume, move its subdirectory of the work directory aside (or pass `refine_large.py` a fresh `--work`). Otherwise rerun the same commands to resume.
 
 For the published Fibonacci file:
 
@@ -78,7 +78,7 @@ modal run --detach modal_rebuild.py
 modal run --detach modal_rebuild.py --files fiducials/fiducial_5779.txt
 ```
 
-The local test covers small odd/even dimensions, precise verification, recovery from a real numerical checkpoint, byte comparisons and negative controls. The Modal runner defaults to the four earlier large files, comparing SHA-256 in isolated copies. Its header explains how to retrieve logs and results; the deferred 39604 rebuild needs a larger memory allocation than this runner reserves ([details](RESULTS.md#39604-provenance)).
+The local test covers small odd/even dimensions, precise verification, recovery from a real numerical checkpoint, byte comparisons, negative controls and the conjugation-precision regression (`test_conjugation.jl`). The Modal runner defaults to the four earlier large files, comparing SHA-256 in isolated copies. Its header explains how to retrieve logs and results.
 
 After rebuilding, require `git diff --exit-code fiducials/ fibonacci/`.
 

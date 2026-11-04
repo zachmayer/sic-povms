@@ -134,20 +134,20 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### Linux rebuild measurements
 
-`modal_rebuild.py` rebuilt each file from commit `d46d4dd`'s scripts (later commits on this branch change only docs) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used one language thread and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
+`modal_rebuild.py` rebuilt each file from the scripts of PR #13 (tested at commit `61f8bdd`) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used one language thread and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
 
 | published file | run ID | construction (s) | refinement (s) | matching SHA-256 |
 |---|---|---:|---:|---|
-| `fiducials/fiducial_2208.txt` | `255650a0fadc405486ad03550d7a88a7` | 1,352.04 | 289.48 | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
-| `fibonacci/fiducial_2208.txt` | `0987f220f5f24b5297f194553a63be0d` | 93.69 | 302.41 | `811ca49245b4c36b0027a0ed42895073e32108104fd15880aeddf57f191eb435` |
-| `fiducials/fiducial_5779.txt` | `9ad39fc009ff4dae8a7382cf9c2c8292` | — | — | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
-| `fiducials/fiducial_15128.txt` | `6dbf3835bda747f8829e8251ea73740a` | — | — | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
+| `fiducials/fiducial_2208.txt` | `670789f50de74eb98bec9da4a0f31436` | 1,283.23 | 282.72 | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
+| `fibonacci/fiducial_2208.txt` | `5addfd9815574878aa6ff4a877824e3a` | 83.48 | 285.24 | `811ca49245b4c36b0027a0ed42895073e32108104fd15880aeddf57f191eb435` |
+| `fiducials/fiducial_5779.txt` | `99048a3491a0434ea4285e0c95275819` | — | — | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
+| `fiducials/fiducial_15128.txt` | `d800695500334981af50d924498005da` | — | — | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-All four rebuilt files are byte-identical to the published ones. The 5779 and 15128 runs took seven and nine container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume, so the runner recorded only partial times for them. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume. Before the conjugation fix, at commit `d104d3e`, rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`) were also byte-identical.
+All four rebuilt files are byte-identical to the published ones. The 5779 and 15128 runs took two and seven container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume, so the runner recorded only partial times for them. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume. Before the conjugation fix, at commit `d104d3e`, rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`) were also byte-identical.
 
 ### Saved-file verification
 
-A fresh offline `uv run verify.py` sweep from the edited tree passed all 109 files in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
+A fresh offline `uv run verify.py` sweep of the 109 files merged in `b5da7a8` passed all of them in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
 
 | published file | maximum deviation, precise upper bound | U_Z residual, precise upper bound | U_Z eigenvalue |
 |---|---:|---:|---|

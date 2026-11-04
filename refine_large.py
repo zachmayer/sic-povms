@@ -25,7 +25,6 @@ import json
 import multiprocessing
 import os
 from pathlib import Path
-import re
 import resource
 import sys
 import time
@@ -39,6 +38,10 @@ from scipy import fft
 from scipy.sparse.linalg import LinearOperator, cg
 
 from search import fiducial_text, read_fiducial
+
+BITS = 640
+STEPS = 22
+CHECKPOINT_CG_ITERATIONS = 16
 
 
 def batches(d: int, batch: int) -> Iterator[tuple[np.ndarray, np.ndarray]]:
@@ -66,25 +69,6 @@ def normal_product(psi: np.ndarray, tangent: np.ndarray, batch: int = 32) -> np.
 
 
 
-ROW = re.compile(r"([+-]\.\d+e-?\d+)([+-]\.\d+e-?\d+)i")
-
-
-def read_hp(path):
-    answer = []
-    for number, line in enumerate(path.read_text().splitlines(), 1):
-        if not line.strip():
-            continue
-        match = ROW.fullmatch(line.strip())
-        if match is None:
-            raise ValueError(f"Invalid Scott--Grassl row {number}: {path}")
-        a, b = match.groups()
-        answer.append(acb(arb(a.replace(".", "0.", 1)),
-                          arb(b.replace(".", "0.", 1))).mid())
-    if len(answer) < 2:
-        raise ValueError("At least two components required")
-    return answer
-
-
 def atomic_text(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".pending")
@@ -104,12 +88,9 @@ def write_hp(path: Path, psi: list[acb]) -> None:
     norm = sum((z.real * z.real + z.imag * z.imag for z in psi), arb(0)).sqrt()
     phase = psi[0].conjugate() / abs(psi[0])
     normalized = [z * phase / norm for z in psi]
-    path.parent.mkdir(parents=True, exist_ok=True)
     rows = [(fraction(z.real), Fraction(0) if j == 0 else fraction(z.imag))
             for j, z in enumerate(normalized)]
-    temporary = path.with_suffix(path.suffix + ".pending")
-    temporary.write_bytes(fiducial_text(rows, 150).encode("ascii"))
-    temporary.replace(path)
+    atomic_text(path, fiducial_text(rows, 150))
 
 
 
@@ -143,23 +124,18 @@ def peak_rss_bytes():
     return int(rss if sys.platform == "darwin" else rss*1024)
 
 
-def hp_gradient(psi, rows=None, *, start_row=0, gradient=None, worst=None,
-                checkpoint=None, checkpoint_rows=64):
-    """J^T r over [start_row, rows), or complete with a saved prefix.
+def hp_gradient(psi, start_row, stop, gradient, worst, checkpoint, checkpoint_rows):
+    """J^T r over [start_row, stop), or complete with a saved prefix.
 
     Row a=d//2 has weight one only for EVEN d. For odd d it is paired with
     d-a and therefore has weight two. Midpoints are taken after each row,
     identically with/without checkpoints. The independent checker uses bounds.
     """
     d = len(psi)
-    stop = d//2 + 1 if rows is None else min(rows, d//2 + 1)
-    if not 0 <= start_row <= stop:
+    if not 0 <= start_row <= stop <= d//2 + 1:
         raise ValueError("Invalid gradient row interval")
     target = arb(1)/(d+1)
     conjugates = [z.conjugate() for z in psi]
-    gradient = [acb(0) for _ in psi] if gradient is None else gradient
-    worst = arb(0) if worst is None else worst
-    norm = sum((z.real*z.real + z.imag*z.imag for z in psi), arb(0))
     for a in range(start_row, stop):
         weight = 1 if a == 0 or (d % 2 == 0 and a == d//2) else 2
         indices = [(j+a) % d for j in range(d)]
@@ -174,14 +150,13 @@ def hp_gradient(psi, rows=None, *, start_row=0, gradient=None, worst=None,
             gradient[j] += h[j]*psi[k]
             gradient[k] += h[j].conjugate()*psi[j]
         gradient = [z.mid() for z in gradient]
-        if checkpoint is not None and ((a+1) % checkpoint_rows == 0 or a+1 == stop):
+        if (a+1) % checkpoint_rows == 0 or a+1 == stop:
             checkpoint(a+1, gradient, worst)
-    return gradient, worst, abs(norm-1).mid()
 
 
 def gradient_shard(packed_psi, identity, first, stop, path, checkpoint_rows):
     """Independently callable, resumable worker; no network or global state."""
-    ctx.prec = identity["bits"]
+    ctx.prec = BITS
     ctx.threads = 1
     path = Path(path)
     shard_identity = {**identity, "psi_sha256": digest(packed_psi), "first": first, "stop": stop}
@@ -205,9 +180,8 @@ def gradient_shard(packed_psi, identity, first, stop, path, checkpoint_rows):
                      seconds=prior_seconds + time.perf_counter()-start)
         save_state(path, state)
 
-    hp_gradient(unpack_vector(packed_psi), stop, start_row=state["next_row"], gradient=gradient,
-                worst=unpack_real(state["worst"]), checkpoint=checkpoint,
-                checkpoint_rows=checkpoint_rows)
+    hp_gradient(unpack_vector(packed_psi), state["next_row"], stop, gradient,
+                unpack_real(state["worst"]), checkpoint, checkpoint_rows)
     return state
 
 
@@ -236,39 +210,38 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("file", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--steps", type=int, default=22, help="Total iteration limit, including resumed ones")
-    parser.add_argument("--bits", type=int, default=640)
     parser.add_argument("--workers", type=int, default=1, help="Gradient workers (1..8); CG stays single-core")
     parser.add_argument("--work", type=Path, help="Directory for log, checkpoints and gradient shards")
     parser.add_argument("--checkpoint-rows", type=int, default=64)
-    parser.add_argument("--checkpoint-cg-iterations", type=int, default=16)
     args = parser.parse_args()
-    if args.bits < 640 or not 1 <= args.workers <= 8 or min(
-            args.steps, args.checkpoint_rows, args.checkpoint_cg_iterations) < 1:
-        parser.error("Use at least 640 bits, 1..8 workers and positive iteration/row counts")
+    if not 1 <= args.workers <= 8 or args.checkpoint_rows < 1:
+        parser.error("Use 1..8 workers and a positive checkpoint row count")
     if args.file.resolve() == args.output.resolve():
         parser.error("Input and output must differ; input anchors the normal operator")
-    ctx.prec = args.bits
+    ctx.prec = BITS
     ctx.threads = 1
-    psi = read_hp(args.file)
+    strings = read_fiducial(args.file)
+    if len(strings) < 2:
+        raise ValueError("At least two components required")
+    psi = [acb(arb(re), arb(im)).mid() for re, im in strings]
     d = len(psi)
     work = args.work or Path(os.environ.get("LARGE_D_WORK", f"large_d_work/d{d}")) / ("refine_" + args.file.stem)
     work.mkdir(parents=True, exist_ok=True)
     checkpoint_path = work / "checkpoint.json"
     identity = {"input_sha256": hashlib.sha256(args.file.read_bytes()).hexdigest(),
-                "bits": args.bits, "d": d, "workers": min(args.workers, d//2+1),
+                "d": d, "workers": min(args.workers, d//2+1),
                 "code_sha256": hashlib.sha256(Path(__file__).read_bytes()
                                                + Path(__file__).with_name("search.py").read_bytes()).hexdigest()}
     if checkpoint_path.exists():
         state = json.loads(checkpoint_path.read_text())
         if state["identity"] != identity:
-            raise ValueError("Checkpoint input, precision, workers or implementation changed; use another checkpoint")
+            raise ValueError("Checkpoint input, settings or implementation changed; use another --work directory")
         psi = unpack_vector(state["psi"])
         print(json.dumps({"event": "resume", "step": state["step"], "phase": state["phase"],
-                          "next_row": state["next_row"], "checkpoint": str(checkpoint_path)}), flush=True)
+                          "checkpoint": str(checkpoint_path)}), flush=True)
     else:
         state = {"identity": identity, "step": 0, "phase": "gradient",
-                 "psi": pack_vector(psi), "gradient": None, "next_row": 0,
+                 "psi": pack_vector(psi), "gradient": None,
                  "worst": pack_real(arb(0)), "gradient_seconds": 0.0, "cg_x": None,
                  "normal_seconds": 0.0, "normal_calls": 0}
         save_state(checkpoint_path, state)
@@ -276,7 +249,7 @@ def main():
         write_hp(args.output, psi)
         print(json.dumps({"event": "already_converged", "output": str(args.output)}), flush=True)
         return
-    p0 = np.array([complex(float(re), float(im)) for re, im in read_fiducial(args.file)])
+    p0 = np.array([complex(float(re), float(im)) for re, im in strings])
     phase = np.concatenate([-p0.imag, p0.real])
     phase /= np.linalg.norm(phase)
     calls = 0
@@ -289,40 +262,26 @@ def main():
 
     operator = LinearOperator((2*d, 2*d), matvec=normal, dtype=np.float64)
     log = work / "refinement.jsonl"
-    for step in range(state["step"], args.steps):
-        gradient = None if state["gradient"] is None else unpack_vector(state["gradient"])
+    for step in range(state["step"], STEPS):
         if state["phase"] == "gradient":
             start = time.perf_counter()
-            prior_seconds = state["gradient_seconds"]
-            if identity["workers"] == 1:
-
-                def checkpoint_gradient(next_row, partial, worst):
-                    state.update(next_row=next_row, gradient=pack_vector(partial), worst=pack_real(worst),
-                                 gradient_seconds=prior_seconds + time.perf_counter()-start)
-                    save_state(checkpoint_path, state)
-
-                gradient, error, norm_error = hp_gradient(
-                    psi, start_row=state["next_row"], gradient=gradient,
-                    worst=unpack_real(state["worst"]), checkpoint=checkpoint_gradient,
-                    checkpoint_rows=args.checkpoint_rows)
-            else:
-                count = identity["workers"]
-                rows = d//2 + 1
-                packed = state["psi"]
-                shard_paths = [work / f"step{step}.part{k}.json" for k in range(count)]
-                context = multiprocessing.get_context("spawn")
-                with ProcessPoolExecutor(max_workers=count, mp_context=context) as pool:
-                    jobs = [pool.submit(gradient_shard, packed, identity, rows*k//count, rows*(k+1)//count,
-                                        str(shard_paths[k]), args.checkpoint_rows)
-                            for k in range(count)]
-                    parts = [job.result() for job in jobs]
-                gradient, error = merge_gradient_shards(parts, identity, packed)
-                norm_error = abs(sum((z.real*z.real + z.imag*z.imag for z in psi), arb(0))-1).mid()
-                state["gradient_core_seconds"] = sum(part["seconds"] for part in parts)
+            count = identity["workers"]
+            rows = d//2 + 1
+            packed = state["psi"]
+            shard_paths = [work / f"step{step}.part{k}.json" for k in range(count)]
+            context = multiprocessing.get_context("spawn")
+            with ProcessPoolExecutor(max_workers=count, mp_context=context) as pool:
+                jobs = [pool.submit(gradient_shard, packed, identity, rows*k//count, rows*(k+1)//count,
+                                    str(shard_paths[k]), args.checkpoint_rows)
+                        for k in range(count)]
+                parts = [job.result() for job in jobs]
+            gradient, error = merge_gradient_shards(parts, identity, packed)
+            norm_error = abs(sum((z.real*z.real + z.imag*z.imag for z in psi), arb(0))-1).mid()
             state.update(phase="solve", gradient=pack_vector(gradient), worst=pack_real(error),
-                         norm_error=pack_real(norm_error), next_row=d//2+1,
-                         gradient_seconds=prior_seconds + time.perf_counter()-start)
+                         norm_error=pack_real(norm_error), gradient_seconds=time.perf_counter()-start)
             save_state(checkpoint_path, state)
+        else:
+            gradient = unpack_vector(state["gradient"])
         for path in work.glob(f"step{step}.part*.json"):
             path.unlink()
         error = unpack_real(state["worst"])
@@ -355,7 +314,7 @@ def main():
         def checkpoint_cg(x):
             nonlocal cg_iterations
             cg_iterations += 1
-            if cg_iterations % args.checkpoint_cg_iterations == 0:
+            if cg_iterations % CHECKPOINT_CG_ITERATIONS == 0:
                 state.update(cg_x=x.tolist(), normal_seconds=prior_seconds + time.perf_counter()-start,
                              normal_calls=prior_calls + calls)
                 save_state(checkpoint_path, state)
@@ -370,10 +329,10 @@ def main():
         print(json.dumps({"step": step, "normal_calls": prior_calls + calls,
                           "normal_seconds": prior_seconds + time.perf_counter()-start}), flush=True)
         state.update(step=step+1, phase="gradient", psi=pack_vector(psi), gradient=None,
-                     next_row=0, worst=pack_real(arb(0)), gradient_seconds=0.0,
+                     worst=pack_real(arb(0)), gradient_seconds=0.0,
                      cg_x=None, normal_seconds=0.0, normal_calls=0)
         save_state(checkpoint_path, state)
-    raise RuntimeError("Refinement did not converge within --steps; checkpoint retained")
+    raise RuntimeError(f"Refinement did not converge within {STEPS} steps; checkpoint retained")
 
 
 if __name__ == "__main__":

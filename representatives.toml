@@ -5,6 +5,7 @@
 # The original best-fit shifts can differ only by roundoff between Clifford
 # images. Pin their zero-based column-major group indices as well; unrounded
 # Float64 fits cannot select those same images across BLAS/platform builds.
+# A pinned shift also retains the prototype's seeded random power-iteration start.
 [2208]
 shift = 111376
 orders = [2, 8, 16, 3, 16, 3, 11]

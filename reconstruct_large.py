@@ -18,7 +18,6 @@ from atomic files under --work. Representative choices are in the Julia header.
 
 import argparse
 import cmath
-from fractions import Fraction
 import hashlib
 import json
 import os
@@ -32,14 +31,7 @@ for variable in ("OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "OMP_NUM_THRE
 
 import numpy as np
 
-from search import fiducial_text
-
-
-def write_fiducial(path: Path, psi: np.ndarray) -> None:
-    psi = psi / np.linalg.norm(psi)
-    psi *= np.conj(psi[0]) / abs(psi[0])
-    path.write_bytes(fiducial_text([(Fraction(float(z.real)), Fraction(0) if j == 0 else Fraction(float(z.imag)))
-                                  for j, z in enumerate(psi)], 17).encode("ascii"))
+from search import write_seed
 
 
 def emit(event: str, **fields: object) -> None:
@@ -85,7 +77,7 @@ def normalized(vector: np.ndarray) -> np.ndarray:
 
 
 def shift_order(fits: np.ndarray, shifts: np.ndarray, preferred: int) -> np.ndarray:
-    """Canonical fit ranking, or a pinned unpublished-prototype representative."""
+    """Canonical fit ranking; pin rationale is in representatives.toml."""
     if preferred < 0:
         return np.argsort(np.round(fits, 10), kind="stable")
     order = np.flatnonzero(shifts == preferred)
@@ -149,6 +141,10 @@ class Reconstruction:
         self.shifts = self.determinant_shifts()
 
     def build_owner(self) -> tuple[np.memmap, np.memmap]:
+        """Map each standard displacement to a 1-based orbit index and its ±1 sign.
+
+        Unknown entries have owner=sign=0; signs account for reducing labels mod d.
+        """
         checkpoint = self.work/"owner_progress.json"
         state = json.loads(checkpoint.read_text()) if checkpoint.exists() else {"next_group": 0}
         mode = "r+" if checkpoint.exists() else "w+"
@@ -180,6 +176,9 @@ class Reconstruction:
         return owner, signs
 
     def determinant_shifts(self) -> np.ndarray:
+        """First shift per det(M): labels give [a-q_b*b,b] for M=a*I+b*L.
+        Shifts with det=1 are Clifford unitaries commuting with U_Z.
+        """
         output = self.work/"determinant_shifts.npy"
         if output.exists():
             return np.load(output)
@@ -198,6 +197,10 @@ class Reconstruction:
         return result
 
     def shifted_units(self, owners: np.ndarray, shift: int | np.ndarray) -> np.ndarray:
+        """Conjugate units at owner-shift in the product of cyclic quotient axes.
+
+        Owners are 1-based; unknown owners may wrap because their signs are zero.
+        """
         flat = owners.astype(np.int64)-1
         result = np.zeros(np.broadcast_shapes(flat.shape, np.shape(shift)), dtype=np.int64)
         stride = 1
@@ -286,7 +289,7 @@ class Reconstruction:
             selected = int(order[trial])
             shift = int(self.shifts[selected])
             if state["trial"] != trial or state["stage"] == "new":
-                if self.metadata["legacy_start"]:
+                if self.metadata["preferred_shift"] >= 0:
                     rng = np.random.default_rng(221+trial)
                     vector = normalized(rng.standard_normal(self.d)+1j*rng.standard_normal(self.d))
                 else:
@@ -351,15 +354,15 @@ def main() -> None:
     vector = reconstruction.run()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_suffix(args.output.suffix+".part")
-    write_fiducial(temporary, vector)
+    write_seed(temporary, vector)
     temporary.replace(args.output)
-    lam = np.vdot(vector, zauner(vector))
-    result = {"candidate_only_requires_high_precision_refinement": True, "d": len(vector),
+    moved = zauner(vector)
+    lam = np.vdot(vector, moved)
+    result = {"d": len(vector),
               "output": str(args.output), "seconds": time.perf_counter()-started,
               "cpu_seconds": time.process_time()-cpu_started, "peak_rss_bytes": peak_rss(),
               "norm_error": abs(float(np.vdot(vector, vector).real)-1),
-              "zauner_residual": float(np.max(np.abs(zauner(vector)-lam*vector))),
-              "owner_and_sign_file_bytes": 5*len(vector)**2,
+              "zauner_residual": float(np.max(np.abs(moved-lam*vector))),
               "configuration": reconstruction.configuration}
     save_json(args.work/"result.json", result)
     emit("complete", **result)

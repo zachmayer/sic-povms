@@ -1,5 +1,5 @@
 # Build a companion-form SIC seed by the Stark-unit method of stark.jl.
-# Run: julia --project=. --threads=1 stark_large.jl DIMENSION [BITS=2048]
+# Run: julia --project=. --threads=1 --gcthreads=1 stark_large.jl DIMENSION [BITS=2048]
 #
 # To keep large d tractable, factor the cocycle along the label orbit, use FLINT
 # FFT residuals with a frozen Float64 QR, and stream units and normal-basis traces.
@@ -25,11 +25,10 @@
 #   rounded to 10 decimals, then column-major shift index; take the first
 #   converging determinant class. Power iteration starts from e_0.
 #
-# All three published standard-Zauner large-d files retain prototype quotient
-# coordinates, determinant shifts and the legacy start rule. The table explains
-# those pins; test_large.py tests the unpinned rule at small d.
+# Pin rationale: representatives.toml; test_large.py tests the unpinned rule at small d.
 
 const cli_args = copy(ARGS)
+# Empty ARGS so including stark.jl loads helpers without running its top-level loop.
 empty!(ARGS)
 include("stark.jl")
 using TOML, SHA
@@ -37,6 +36,7 @@ import Nemo
 using Nemo: AcbField, acb_struct
 
 const REPRESENTATIVES = TOML.parsefile(joinpath(@__DIR__, "representatives.toml"))
+const LIVE_BITS = 128
 
 function companion_form(d)
     d >= 4 || error("dimension must be at least four")
@@ -46,7 +46,7 @@ function companion_form(d)
         delta % D == 0 || continue
         q = isqrt(div(delta, D))
         q^2 * D == delta && f % q == 0 || continue
-        mod(d,9) == 3 && mod(div(f,q),3) == 0 && continue
+        mod(d,9) == 3 && mod(div(f,q),3) == 0 && continue # skip F_a symmetry
         return AdmissibleTuple(d, QuadBin(1,-b,1))
     end
     error("no supported standard-Zauner companion form for d=$d")
@@ -54,7 +54,7 @@ end
 
 function check_configuration(d,bits)
     bits >= 512 || error("construction requires at least 512 bits")
-    names = ("stark.jl", "stark_large.jl", "representatives.toml", "reconstruct_large.py", "search.py", "Project.toml", "Manifest.toml")
+    names = ("stark.jl", "stark_large.jl", "representatives.toml", "Project.toml", "Manifest.toml")
     fingerprint = bytes2hex(sha256(join(read(joinpath(@__DIR__,name),String) for name in names)))
     value = "$d $bits $VERSION $(Sys.MACHINE) $fingerprint\n"
     path = "configuration.txt"
@@ -65,8 +65,11 @@ function check_configuration(d,bits)
     end
 end
 
+"""Cyclic axes of (O/dd O)^× modulo the overlap stabilizer, in the header's order.
+Represent a+y*beta by a*I+y*L; a negative-norm unit extends the stabilizer.
+"""
 function arithmetic_generators(F)
-    d,dd,b=Int(F.d),2^iseven(F.d)*Int(F.d),Int(-F.Q.b)
+    d=Int(F.d); dd=2^iseven(d)*d; b=Int(-F.Q.b)
     if haskey(REPRESENTATIVES,string(d))
         pin=REPRESENTATIVES[string(d)]
         return [permutedims(reshape(Int.(v),2,2)) for v in pin["matrices"]],Int.(pin["orders"])
@@ -76,12 +79,8 @@ function arithmetic_generators(F)
     R,_=quo(O,ideal(O,dd))
     UR,ur=unit_group(R)
     anti,A=is_antiunitary_with_generator(F)
-    generator = if anti
-        y=A[2,1]
-        A[1,1]-y*F.L[1,1]+y*beta
-    else
-        beta
-    end
+    # A = a*I + y*L with L[2,2] = 0, so a = A[2,2] and y = A[2,1]; L acts as beta.
+    generator = anti ? A[2,2]+A[2,1]*beta : beta
     G,pi=quo(UR,[preimage(ur,R(O(generator)))])
     chosen=typeof(zero(G))[]
     mats,ords=Matrix{Int}[],Int[]
@@ -127,7 +126,7 @@ function orbit_shin(F, p1, p2)
 end
 
 function ghost_nu(F,p1,p2)
-    d,A,β = Int(F.d),F.A,F.x
+    d,A = Int(F.d),F.A
     QA = QuadBin(A[2,1],A[2,2]-A[1,1],-A[1,2])
     ζ = -cispi(BigFloat(1)/d)
     c = -e(-BigFloat(rademacher(A))/24)/sqrt(BigFloat(d+1))
@@ -215,8 +214,7 @@ function refine_ghost(ψ,bits)
             println("bump iter=$iter bits=$bits residual=$(Float64(log2(res))) log2 seconds=$t")
             flush(stdout)
             path="data/ghost_$(bits)_progress.jls"
-            serialize(path*".part",re_im_proj(z))
-            mv(path*".part",path;force=true)
+            save_atomic(path,re_im_proj(z))
             if res < big(2.0)^(-bits+40)
                 return re_im_proj(z)
             end
@@ -241,30 +239,29 @@ function ghost_units_stream(ψ,P,checkpoint_dir)
         push!(rows[mod(a,d)+1],i)
     end
     mkpath(checkpoint_dir)
-    for firstrow in 0:32:d-1
-        lastrow=min(d-1,firstrow+31)
-        path=joinpath(checkpoint_dir,"rows_$(firstrow)_$(lastrow).jls")
-        isfile(path) && continue
-        indices=Int[]
-        values=BigFloat[]
-        for a in firstrow:lastrow
-            isempty(rows[a+1]) && continue
-            vals=[conj(φ[k+1])*ψ[mod(k-a,d)+1] for k in 0:d-1]
-            row=d*flint_dft(vals;inverse=true)
-            for i in rows[a+1]
-                p,q=P[i]
-                push!(values,normfactor*real(ζ[mod(p*q,2d)+1]*row[mod(q,d)+1]))
-            end
-            append!(indices,rows[a+1])
-        end
-        save_atomic(path,(indices,values))
-        println("ghost overlap rows=$firstrow:$lastrow/$d")
-        flush(stdout)
-    end
     u=Array{BigFloat}(undef,size(P))
     for firstrow in 0:32:d-1
         lastrow=min(d-1,firstrow+31)
-        indices,values=deserialize(joinpath(checkpoint_dir,"rows_$(firstrow)_$(lastrow).jls"))
+        path=joinpath(checkpoint_dir,"rows_$(firstrow)_$(lastrow).jls")
+        if isfile(path)
+            indices,values=deserialize(path)
+        else
+            indices=Int[]
+            values=BigFloat[]
+            for a in firstrow:lastrow
+                isempty(rows[a+1]) && continue
+                vals=[conj(φ[k+1])*ψ[mod(k-a,d)+1] for k in 0:d-1]
+                row=d*flint_dft(vals;inverse=true)
+                for i in rows[a+1]
+                    p,q=P[i]
+                    push!(values,normfactor*real(ζ[mod(p*q,2d)+1]*row[mod(q,d)+1]))
+                end
+                append!(indices,rows[a+1])
+            end
+            save_atomic(path,(indices,values))
+            println("ghost overlap rows=$firstrow:$lastrow/$d")
+            flush(stdout)
+        end
         u[indices]=values
     end
     return u
@@ -274,30 +271,23 @@ end
 "Marginal normal-basis sums without materializing a shifted Galois tensor."
 function basis_marginal(u,j,recipe)
     shape=size(u)
-    stride=prod(shape[1:j-1];init=1)
     result=zeros(BigFloat,shape[j])
     linear=recipe.kind===:linear
-    zero_shift=linear || all(iszero,recipe.shift)
     squared=recipe.kind===:shifted_quad_sq
-    if zero_shift
-        for i in eachindex(u)
-            v=linear ? u[i] : u[i]+u[i]^2
-            squared && (v=v^2)
-            result[mod((i-1)÷stride,shape[j])+1]+=v
-        end
-    else
-        LI=LinearIndices(u)
-        for ci in CartesianIndices(u)
+    for ci in CartesianIndices(u)
+        v = if linear
+            u[ci]
+        else
             shifted=CartesianIndex(mod.(Tuple(ci).-recipe.shift.-1,shape).+1)
-            v=u[ci]+u[ci]*u[LI[shifted]]
-            squared && (v=v^2)
-            result[ci[j]]+=v
+            u[ci]+u[ci]*u[shifted]
         end
+        squared && (v=v^2)
+        result[ci[j]]+=v
     end
     result
 end
 
-function normal_recipes(u,d)
+function streamed_normal_recipes(u,d)
     map(1:ndims(u)) do j
         isbasis(recipe)=minimum(abs,flint_dft(complex.(basis_marginal(u,j,recipe));inverse=true))>ldexp(big(1.0),-128)
         linear=Zauner.NormalBasisRecipe(:linear,nothing)
@@ -350,7 +340,8 @@ function conjugate_units(σ,trace,forms_x)
         keys=[(round(real(z);digits=10),round(imag(z);digits=10)) for z in λ]
         allunique(keys) || error("multiplication roots tie at 10 decimals")
         index=argmin(keys)
-        # Preserve the original root; refine the eigenvector with z[1]=λ.
+        # z is an eigenvector of A scaled so that its first entry is its eigenvalue.
+        # Solve A*z-z[1]*z=0 with Jacobian A-z[1]*I-z*e₁ᵀ, starting at the selected Float64 root.
         z=Complex{BigFloat}.(V[:,index]*λ[index]/V[1,index])
         for _ in 1:5
             residual=A*z-z[1]*z
@@ -359,28 +350,21 @@ function conjugate_units(σ,trace,forms_x)
             z-=jacobian\residual
         end
         Gz,Cz=forms(z)
-        tolerance=big(2.0)^(-96)
+        tolerance=ldexp(big(1.0),-(LIVE_BITS-32))
         max(norm(Gz-G)/norm(G),norm(Cz-C)/norm(C))<tolerance || return nothing
         push!(y,G\z)
     end
     # Recognition must retain the caller's working precision. Only its result
     # is rounded; lowering precision around σ itself corrupts integer rounding.
-    transformed=map(v->BigFloat(σ(v);precision=128),trace)
-    live=setprecision(BigFloat,128) do
+    transformed=map(v->BigFloat(σ(v);precision=LIVE_BITS),trace)
+    live=setprecision(BigFloat,LIVE_BITS) do
         hankel_prod(transformed,y)
     end
     ComplexF64.(live)
 end
 
 function generator_orbit(F,mats,ords)
-    d=Int(F.d)
-    multiplier=iseven(d) ? 2 : 1
-    d>1 || throw(ArgumentError("dimension must exceed one"))
-    d<=typemax(Int)÷multiplier || throw(OverflowError("residue modulus exceeds Int"))
-    dd=multiplier*d
-    # Both matrix products and scalar updates sum two products of residues.
-    # At d=39604, dd=79208 and the largest sum is 12_547_497_698: safe in Int64.
-    2big(dd-1)^2<=typemax(Int) || throw(OverflowError("two residue products exceed Int"))
+    d=Int(F.d); dd=2^iseven(d)*d
     all(M->all(x->0<=x<dd,M),mats) || throw(ArgumentError("generator matrices must contain canonical residues"))
     powers=[[Matrix{Int}(I,2,2)] for _ in mats]
     for i in eachindex(mats)
@@ -403,12 +387,16 @@ function generator_orbit(F,mats,ords)
 end
 
 function check_generators(F,mats,ords,P)
-    dd=2^iseven(F.d)*Int(F.d)
+    d=Int(F.d); dd=2^iseven(d)*d
     stabs=[Int.(mod.(S,dd)) for S in stabilizer_elements(F)]
     for (M,n) in zip(mats,ords)
         gcd(M[1,1]*M[2,2]-M[1,2]*M[2,1],dd)==1 || error("nonunit quotient generator")
         mod.(M*Int.(F.L)-Int.(F.L)*M,dd)==zeros(Int,2,2) || error("noncommuting quotient generator")
-        @assert mod.(power_mod_matrix(M,n,dd),dd) in stabs
+        power=Matrix{Int}(I,2,2)
+        for _ in 1:n
+            power=mod.(power*M,dd)
+        end
+        @assert power in stabs
     end
     seen=falses(dd,dd)
     for p in P,s in stabs
@@ -419,16 +407,6 @@ function check_generators(F,mats,ords,P)
     end
     println("group axes=$ords size=$(length(P)) stabilizers=$(length(stabs)) distinct labels=$(count(seen))")
     stabs
-end
-
-function power_mod_matrix(M,n,dd)
-    R=Matrix{Int}(I,2,2)
-    while n>0
-        isodd(n) && (R=mod.(R*M,dd))
-        M=mod.(M*M,dd)
-        n>>=1
-    end
-    R
 end
 
 function standard_map(F)
@@ -504,7 +482,7 @@ function run_construct(d,bits)
             ghost_units_stream(ψ,P,"units_$(bits)_rows")
         end
         recipes=stage("recipes_$bits") do
-            normal_recipes(u,d)
+            streamed_normal_recipes(u,d)
         end
         x=stage("bases_$bits") do
             normal_bases(u,recipes)
@@ -526,9 +504,9 @@ function run_construct(d,bits)
         # Hecke's embedding caches contain process-local C state. Rebuild this
         # small object; Julia serialization is safe for the numerical tensors.
         H=classfield(F)
-        uu=nothing
+        uu,squared_modulus_error=nothing,Inf
         # Relative squared-modulus guard, with room for the final Float64 rounding.
-        modulus_tolerance=64eps(Float64)*(d+1)
+        squared_modulus_tolerance=64eps(Float64)*(d+1)
         for b in unique(min.(round.(Int,relation_bits.*1.5.^(0:3)),bits-100))
             uu=stage("liveunits_$(bits)_$b") do
                 conjugate_units(conjugator(H,F,b,s),trace,forms_x)
@@ -538,29 +516,30 @@ function run_construct(d,bits)
                 flush(stdout)
                 continue
             end
-            err=maximum(abs,abs2.(uu).-(d+1))
-            println("CONJUGATION bits=$b modulus_error=$err"); flush(stdout)
-            err<modulus_tolerance && break
+            squared_modulus_error=maximum(abs,abs2.(uu).-(d+1))
+            println("CONJUGATION bits=$b squared_modulus_error=$squared_modulus_error"); flush(stdout)
+            squared_modulus_error<squared_modulus_tolerance && break
         end
-        uu!==nothing && maximum(abs,abs2.(uu).-(d+1))<modulus_tolerance || error("Conjugation modulus check failed")
+        uu!==nothing && squared_modulus_error<squared_modulus_tolerance || error("Conjugation squared-modulus check failed")
         export_dir="export"
         mkpath(export_dir)
         write(joinpath(export_dir,"units.bin"),vec(uu))
         write(joinpath(export_dir,"labels.bin"),reinterpret(Int64,vec(P)))
         M=standard_map(F)
         matrix_list(A)="["*join([A[1,1],A[1,2],A[2,1],A[2,2]],",")*"]"
-        legacy=haskey(REPRESENTATIVES,string(d))
-        shift=legacy ? REPRESENTATIVES[string(d)]["shift"] : -1
-        metadata="{\"d\":$d,\"q_b\":$(Int(F.Q.b)),\"legacy_start\":$legacy,\"preferred_shift\":$shift,\"axes\":[$(join(ords,","))],\"standard_map\":$(matrix_list(M)),\"stabilizers\":[$(join(matrix_list.(S),","))]}"
+        shift=haskey(REPRESENTATIVES,string(d)) ? REPRESENTATIVES[string(d)]["shift"] : -1
+        metadata="{\"d\":$d,\"q_b\":$(Int(F.Q.b)),\"preferred_shift\":$shift,\"axes\":[$(join(ords,","))],\"standard_map\":$(matrix_list(M)),\"stabilizers\":[$(join(matrix_list.(S),","))]}"
         write(joinpath(export_dir,"metadata.json"),metadata*"\n")
         println("EXPORT ",abspath(export_dir))
         flush(stdout)
     end
     cd(root)
-    python = get(ENV,"UV","uv")
-    run(`$python run $(joinpath(@__DIR__,"reconstruct_large.py")) $(joinpath(work,"export")) --work $(joinpath(work,"reconstruction")) --output $(joinpath(root,"fiducial_$(d)_stark.txt"))`)
+    run(`uv run $(joinpath(@__DIR__,"reconstruct_large.py")) $(joinpath(work,"export")) --work $(joinpath(work,"reconstruction")) --output $(joinpath(root,"fiducial_$(d)_stark.txt"))`)
 end
 
-length(cli_args) in (1,2) || error("usage: stark_large.jl DIMENSION [BITS=2048]")
-run_construct(parse(Int,cli_args[1]),length(cli_args)==2 ? parse(Int,cli_args[2]) : 2048)
-println("PROCESS maxrss=$(Sys.maxrss())")
+# Run only as a script, so test_conjugation.jl can include the helpers.
+if abspath(PROGRAM_FILE) == @__FILE__
+    length(cli_args) in (1,2) || error("usage: stark_large.jl DIMENSION [BITS=2048]")
+    run_construct(parse(Int,cli_args[1]),length(cli_args)==2 ? parse(Int,cli_args[2]) : 2048)
+    println("PROCESS maxrss=$(Sys.maxrss())")
+end
