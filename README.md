@@ -53,6 +53,10 @@ uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
 
 For the large-d companion-form construction:
 
+On macOS, `tmutil addexclusion <work dir>` keeps the tensors out of Time Machine backups. Local snapshots still pin each deleted tensor predecessor (about 48 GB at d = 57966) until macOS purges them; if the disk fills, the run stops at a checked write, and `sudo tmutil deletelocalsnapshots /` frees the space before resuming.
+
+Construction locks its work directory. After an abrupt process or machine crash, confirm the PID recorded in `lock` is no longer running before removing that stale lock and resuming.
+
 ```sh
 d=5779
 work="${LARGE_D_WORK:-large_d_work/d$d}"

@@ -1,5 +1,6 @@
 # Exact record storage, ordered reductions, threaded axes and conjugation precision.
 include(joinpath(@__DIR__,"stark_large.jl"))
+using Test
 
 function packed_copy(path,A)
     bits=precision(real(first(A)))
@@ -7,8 +8,8 @@ function packed_copy(path,A)
     open(path,"w") do io
         words=zeros(UInt64,record_words(T))
         for value in A
-            pack!(words,1,value)
-            write(io,words)
+            pack!(words,1,value,bits)
+            write_all(io,words)
         end
         sync_file(io)
     end
@@ -23,18 +24,23 @@ for bits in (512,2048,2304)
         x=buffer(BigFloat,bits)
         words=zeros(UInt64,2+cld(bits,64))
         for value in values
-            pack!(words,1,value)
+            pack!(words,1,value,bits)
             unpack!(x,words,1)
             @assert isequal(x,value) && precision(x)==bits
             @assert x.sign==value.sign && x.exp==value.exp
             again=similar(words)
-            pack!(again,1,x)
+            pack!(again,1,x,bits)
             @assert again==words
         end
+        @test_throws "unwritten record" unpack!(x,zero(words),1)
+        @test_throws AssertionError pack!(words,1,BigFloat(1;precision=bits-1),bits)
         mktempdir() do dir
             for A in (values,complex.(values,reverse(values)))
                 T=packed_copy(joinpath(dir,"records.bin"),A)
                 @assert isequal(read_all(T),A)
+                reading(T) do R
+                    @test_throws AssertionError read_record!(buffer(eltype(A),bits-1),R,1)
+                end
             end
         end
     end
@@ -116,6 +122,32 @@ setprecision(BigFloat,512) do
     end
 end
 println("PASS: threaded real/complex axes match hankel_prod exactly; checkpoints resume")
+
+setprecision(BigFloat,512) do
+    mktempdir() do dir
+        source=joinpath(dir,"source"); copydir=joinpath(dir,"copy")
+        mkdir(source)
+        A=reshape(sin.(BigFloat.(1:30)),2,3,5)
+        x=[cos.(BigFloat.(1:n)) for n in size(A)]
+        cd(source) do
+            T=packed_copy("units.bin",A)
+            out=packed("trace_axis1.bin",size(A),512;create=true)
+            tensor_axis!(out,T,hankel(x[1]),1)
+            open(sync_file,out.path,"r+")
+            save_atomic("trace.jls",(1,out))
+            @assert !isabspath(out.path)
+        end
+        before=Dict(name=>sha256(read(joinpath(source,name))) for name in readdir(source))
+        cp(source,copydir)
+        cd(copydir) do
+            actual=trace_product(nothing,x,"trace","units.bin")
+            @assert read_all(actual)==hankel_prod(A,x)
+            @assert !isfile("units.bin") && !isfile("trace_axis1.bin")
+        end
+        @assert before==Dict(name=>sha256(read(joinpath(source,name))) for name in readdir(source))
+    end
+end
+println("PASS: copied trace checkpoints resume and delete only the copy's predecessors")
 
 # Terms near 1e14 cancel to 200 (factor 1.1e11; d=39604 needed 1.8e11).
 setprecision(BigFloat,512) do

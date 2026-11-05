@@ -47,6 +47,7 @@ empty!(ARGS)
 ENV["NEMO_THREADED"]="1"
 include("stark.jl")
 using TOML, SHA
+using FileWatching: Pidfile
 import Nemo, QuadGK
 using Nemo: AcbField, acb_struct
 Nemo.__isthreaded[] || error("Nemo loaded before NEMO_THREADED was set")
@@ -77,7 +78,12 @@ function check_configuration(d,bits)
     if isfile(path)
         read(path,String) == value || error("checkpoint source/platform/settings changed; use a fresh LARGE_D_WORK")
     else
-        write(path,value)
+        open(path*".part","w") do io
+            write_all(io,value)
+            sync_file(io)
+        end
+        Base.Filesystem.rename(path*".part",path)
+        sync_directory(".")
     end
 end
 
@@ -302,7 +308,7 @@ Base.ndims(T::PackedTensor)=length(T.shape)
 record_words(T::PackedTensor{S}) where S=(2+cld(T.bits,64))*(S===BigFloat ? 1 : 2)
 
 function packed(path,shape,bits,::Type{S}=BigFloat;create=false) where S
-    T=PackedTensor{S,length(shape)}(abspath(path),Tuple(shape),bits)
+    T=PackedTensor{S,length(shape)}(relpath(path),Tuple(shape),bits)
     bytes=8record_words(T)*length(T)
     if create
         open(path,"w") do io
@@ -315,13 +321,16 @@ end
 
 # Copy limbs into an owned MPFR buffer: no pointer in the file or borrowed limb lifetime.
 function unpack!(x::BigFloat,words,k)
-    x.sign=reinterpret(Int64,words[k]); x.exp=reinterpret(Int64,words[k+1])
+    sign=reinterpret(Int64,words[k])
+    sign in (-1,1) || error("unwritten record")
+    x.sign=sign; x.exp=reinterpret(Int64,words[k+1])
     n=cld(precision(x),64)
     checkbounds(words,k+1+n)
     GC.@preserve x words unsafe_copyto!(Base.unsafe_convert(Ptr{UInt64},x.d),pointer(words,k+2),n)
     x
 end
-function pack!(words,k,x::BigFloat)
+function pack!(words,k,x::BigFloat,bits)
+    @assert precision(x)==bits
     words[k]=reinterpret(UInt64,Int64(x.sign)); words[k+1]=reinterpret(UInt64,Int64(x.exp))
     n=cld(precision(x),64)
     checkbounds(words,k+1+n)
@@ -336,8 +345,8 @@ end
 function unpack!(z::Complex{BigFloat},words,k)
     unpack!(real(z),words,k); unpack!(imag(z),words,k+2+cld(precision(real(z)),64)); z
 end
-function pack!(words,k,z::Complex{BigFloat})
-    pack!(words,k,real(z)); pack!(words,k+2+cld(precision(real(z)),64),imag(z)); words
+function pack!(words,k,z::Complex{BigFloat},bits)
+    pack!(words,k,real(z),bits); pack!(words,k+2+cld(bits,64),imag(z),bits); words
 end
 buffer(::Type{BigFloat},bits)=BigFloat(0;precision=bits)
 buffer(::Type{Complex{BigFloat}},bits)=complex(buffer(BigFloat,bits),buffer(BigFloat,bits))
@@ -357,6 +366,8 @@ Base.size(R::PackedReader)=size(R.tensor)
 Base.IndexStyle(::Type{<:PackedReader})=IndexLinear()
 Base.close(R::PackedReader)=close(R.io)
 function read_record!(x,R::PackedReader,i)
+    @assert precision(real(x))==R.tensor.bits
+    @assert x isa BigFloat || precision(imag(x))==R.tensor.bits
     w=record_words(R.tensor); count=length(R.words)÷w
     if !(R.first<=i<R.first+count) || R.first==0
         R.first=div(i-1,count)*count+1
@@ -365,6 +376,7 @@ function read_record!(x,R::PackedReader,i)
     end
     unpack!(x,R.words,1+w*(i-R.first))
 end
+# Pairwise reduction holds two values at once, so each index needs a fresh buffer.
 Base.getindex(R::PackedReader{S},i::Int) where S=read_record!(buffer(S,R.tensor.bits),R,i)
 function reading(f,T::PackedTensor)
     R=PackedReader(T)
@@ -374,12 +386,19 @@ function reading(f,T::PackedTensor)
         close(R)
     end
 end
-function sync_file(io)
-    # F_FULLFSYNC reaches the macOS drive; fsync elsewhere.
+function write_all(io,x)
+    write(io,x)==sizeof(x) || error("short write")
     flush(io)
-    status=Sys.isapple() ? @ccall(fcntl(fd(io)::RawFD,51::Cint;0::Cint)::Cint) :
-                           @ccall(fsync(fd(io)::RawFD)::Cint)
-    status==0 || error("file sync failed")
+end
+function sync_fd(descriptor)
+    # F_FULLFSYNC reaches the macOS drive; fsync elsewhere.
+    status=Sys.isapple() ? @ccall(fcntl(descriptor::Cint,51::Cint;0::Cint)::Cint) :
+                           @ccall(fsync(descriptor::Cint)::Cint)
+    status==0 || error("sync failed")
+end
+function sync_file(io)
+    flush(io)
+    sync_fd(fd(io))
 end
 
 "Selected real ghost overlaps; disjoint row writes and durable completion markers."
@@ -412,8 +431,8 @@ function ghost_units_stream(ψ,P,path)
                 for i in rows[a+1]
                     p,q=P[i]
                     v=normfactor*real(ζ[mod(p*q,2d)+1]*row[mod(q,d)+1])
-                    pack!(words,1,v)
-                    seek(io,8length(words)*(i-1)); write(io,words)
+                    pack!(words,1,v,T.bits)
+                    seek(io,8length(words)*(i-1)); write_all(io,words)
                 end
             end
             lock(commit) do
@@ -508,27 +527,26 @@ function tensor_axis!(out::PackedTensor,T::PackedTensor{S},H,j) where S
                     w=H*v
                     for k in 0:n-1
                         index=outer_in*n*count+k*count+i
-                        pack!(b,1+index*record_words(out),w[k+1])
+                        pack!(b,1+index*record_words(out),w[k+1],out.bits)
                     end
                 end
                 if blocks==1
                     seek(dst,8record_words(out)*offset)
-                    write(dst,view(b,1:record_words(out)*n*count*many))
+                    write_all(dst,view(b,1:record_words(out)*n*count*many))
                 else
                     for k in 0:n-1
                         seek(dst,8record_words(out)*(offset+k*stride))
-                        write(dst,view(b,1+k*count*record_words(out):(k+1)*count*record_words(out)))
+                        write_all(dst,view(b,1+k*count*record_words(out):(k+1)*count*record_words(out)))
                     end
                 end
             end
         end
         end
     end
-    open(sync_file,out.path,"r+")
     out
 end
 
-function trace_product(T,x,prefix,units_path)
+function trace_product(T,x,prefix,rows_path)
     state=prefix*".jls"
     last=0
     if isfile(state)
@@ -536,15 +554,14 @@ function trace_product(T,x,prefix,units_path)
         println("RESUME trace at axis=$(last+1)")
     end
     # A crash after committing state can leave an obsolete predecessor on disk.
-    if last>0
-        for j in 0:last-1
-            old=j==0 ? replace(units_path,".jls"=>".bin") : "$(prefix)_axis$j.bin"
-            isfile(old) && rm(old)
-        end
+    for j in 0:last-1
+        old=j==0 ? rows_path : "$(prefix)_axis$j.bin"
+        isfile(old) && rm(old)
     end
     for j in last+1:ndims(T)
         out=packed("$(prefix)_axis$j.bin",size(T),T.bits;create=true)
         t=@elapsed tensor_axis!(out,T,hankel(x[j]),j)
+        open(sync_file,out.path,"r+")
         save_atomic(state,(j,out))
         rm(T.path)
         T=out
@@ -555,6 +572,10 @@ end
 
 "Keep guard bits through the ill-conditioned live-basis tensor contraction."
 function conjugate_units(σ,trace,forms_x)
+    # The committed trace is the retry source; discard interrupted live files.
+    for path in ["recognized.bin";["live_axis$j.bin" for j in 1:ndims(trace)]]
+        isfile(path) && rm(path)
+    end
     y=Vector{Vector{Complex{BigFloat}}}()
     for pair in forms_x
         G,C=(X->σ.(X)).(pair)
@@ -581,20 +602,15 @@ function conjugate_units(σ,trace,forms_x)
         max(norm(Gz-G)/norm(G),norm(Cz-C)/norm(C))<tolerance || return nothing
         push!(y,G\z)
     end
-    # The committed trace is the retry source; discard interrupted live axes.
-    for j in 1:ndims(trace)
-        path="live_axis$j.bin"
-        isfile(path) && rm(path)
-    end
     # Recognize at working precision; round only its result to the live precision.
     T=packed("recognized.bin",size(trace),LIVE_BITS;create=true)
     reading(trace) do input
-        open(T.path,"w") do io
+        open(T.path,"r+") do io
             v=buffer(BigFloat,trace.bits); words=zeros(UInt64,record_words(T))
             for i in 1:length(trace)
                 read_record!(v,input,i)
-                pack!(words,1,BigFloat(σ(v);precision=LIVE_BITS))
-                write(io,words)
+                pack!(words,1,BigFloat(σ(v);precision=LIVE_BITS),T.bits)
+                write_all(io,words)
             end
         end
     end
@@ -672,8 +688,10 @@ end
 
 "Write, sync to the drive, then rename: later stages delete the predecessor."
 function save_atomic(path,x)
+    data=IOBuffer()
+    serialize(data,x)
     open(path*".part","w") do io
-        serialize(io,x)
+        write_all(io,take!(data))
         sync_file(io)
     end
     Base.Filesystem.rename(path*".part",path)
@@ -686,7 +704,7 @@ function sync_directory(path)
     directory=ccall(:open,Cint,(Cstring,Cint),path,0)
     directory>=0 || error("cannot open checkpoint directory")
     try
-        ccall(:fsync,Cint,(Cint,),directory)==0 || error("directory sync failed")
+        sync_fd(directory)
     finally
         ccall(:close,Cint,(Cint,),directory)
     end
@@ -710,11 +728,11 @@ end
 
 function run_construct(d,bits,phase)
     phase in ("units","tensors") || error("phase must be units or tensors")
-    Threads.nthreads()<=8 || error("use at most eight threads")
     root=pwd()
     work=abspath(get(ENV,"LARGE_D_WORK",joinpath(root,"large_d_work","d$d")))
     mkpath(work)
-    cd(work)
+    cd(work) do
+    Pidfile.mkpidlock("lock";wait=false) do
     BLAS.set_num_threads(parse(Int,get(ENV,"SIC_BLAS_THREADS","1")))
     randseed!(0); seed!(0)
     F=setprecision(BigFloat,bits+256) do
@@ -730,7 +748,6 @@ function run_construct(d,bits,phase)
             isfile(path) && rm(path)
         end
         println("RESUME export ",abspath("export")); flush(stdout)
-        cd(root)
         return
     end
     phase=="tensors" && !any(isfile,("units_$bits.jls","trace_$bits.jls")) &&
@@ -782,7 +799,7 @@ function run_construct(d,bits,phase)
             end
         end
         start=time()
-        trace=trace_product(u,x,"trace_$bits",units_path)
+        trace=trace_product(u,x,"trace_$bits",rows_path)
         u=nothing
         GC.gc()
         println("STAGE name=trace_$bits seconds=$(time()-start) maxrss=$(Sys.maxrss())")
@@ -798,43 +815,42 @@ function run_construct(d,bits,phase)
         # Hecke's embedding caches contain process-local C state. Rebuild this
         # small object; Julia serialization is safe for the numerical tensors.
         H=classfield(F)
-        uu,squared_modulus_error=nothing,Inf
+        uu=nothing
         # Relative squared-modulus guard, with room for the final Float64 rounding.
         squared_modulus_tolerance=64eps(Float64)*(d+1)
         for b in unique(min.(round.(Int,relation_bits.*1.5.^(0:3)),bits-100))
-            start=time()
-            uu=conjugate_units(conjugator(H,F,b,s),trace,forms_x)
-            println("STAGE name=liveunits_$(bits)_$b seconds=$(time()-start) maxrss=$(Sys.maxrss())")
-            GC.gc()
-            if uu===nothing
-                println("CONJUGATION bits=$b insufficient relation precision; advancing precision")
-                flush(stdout)
-                continue
+            uu=stage("liveunits_$(bits)_$b") do
+                live=conjugate_units(conjugator(H,F,b,s),trace,forms_x)
+                live===nothing && return nothing
+                err=reading(v->maximum(z->abs(abs2(ComplexF64(z))-(d+1)),v),live)
+                println("CONJUGATION bits=$b squared_modulus_error=$err"); flush(stdout)
+                if err<squared_modulus_tolerance
+                    open(sync_file,live.path,"r+")
+                    return live
+                end
+                rm(live.path)
+                nothing
             end
-            squared_modulus_error=reading(v->maximum(z->abs(abs2(ComplexF64(z))-(d+1)),v),uu)
-            println("CONJUGATION bits=$b squared_modulus_error=$squared_modulus_error"); flush(stdout)
-            squared_modulus_error<squared_modulus_tolerance && break
-            rm(uu.path)
-            uu=nothing
+            uu!==nothing && break
         end
-        uu!==nothing && squared_modulus_error<squared_modulus_tolerance || error("Conjugation squared-modulus check failed")
+        uu!==nothing || error("Conjugation squared-modulus check failed")
         export_dir="export"
         mkpath(export_dir)
         reading(uu) do values
             open(joinpath(export_dir,"units.bin.part"),"w") do io
                 for z in values
-                    write(io,ComplexF64(z))
+                    write_all(io,ComplexF64(z))
                 end
                 sync_file(io)
             end
         end
         Base.Filesystem.rename(joinpath(export_dir,"units.bin.part"),joinpath(export_dir,"units.bin"))
-        write(joinpath(export_dir,"labels.bin"),reinterpret(Int64,vec(P)))
+        open(io->write_all(io,vec(P)),joinpath(export_dir,"labels.bin"),"w")
         M=standard_map(F)
         matrix_list(A)="["*join([A[1,1],A[1,2],A[2,1],A[2,2]],",")*"]"
         shift=haskey(REPRESENTATIVES,string(d)) ? REPRESENTATIVES[string(d)]["shift"] : -1
         metadata="{\"d\":$d,\"q_b\":$(Int(F.Q.b)),\"preferred_shift\":$shift,\"axes\":[$(join(ords,","))],\"standard_map\":$(matrix_list(M)),\"stabilizers\":[$(join(matrix_list.(S),","))]}"
-        write(joinpath(export_dir,"metadata.json"),metadata*"\n")
+        open(io->write_all(io,metadata*"\n"),joinpath(export_dir,"metadata.json"),"w")
         for name in ("labels.bin","metadata.json")
             open(sync_file,joinpath(export_dir,name),"r+")
         end
@@ -844,7 +860,8 @@ function run_construct(d,bits,phase)
         println("EXPORT ",abspath(export_dir))
         flush(stdout)
     end
-    cd(root)
+    end
+    end
 end
 
 # Run only as a script, so test_conjugation.jl can include the helpers.
