@@ -47,7 +47,6 @@ empty!(ARGS)
 ENV["NEMO_THREADED"]="1"
 include("stark.jl")
 using TOML, SHA
-using FileWatching: Pidfile
 import Nemo, QuadGK
 using Nemo: AcbField, acb_struct
 Nemo.__isthreaded[] || error("Nemo loaded before NEMO_THREADED was set")
@@ -732,7 +731,9 @@ function run_construct(d,bits,phase)
     work=abspath(get(ENV,"LARGE_D_WORK",joinpath(root,"large_d_work","d$d")))
     mkpath(work)
     cd(work) do
-    Pidfile.mkpidlock("lock";wait=false) do
+    open("lock","w") do lockfile
+    # LOCK_EX|LOCK_NB: the kernel releases this lock on any exit, kill -9 included.
+    @ccall(flock(fd(lockfile)::RawFD,6::Cint)::Cint)==0 || error("another process is using this work directory")
     BLAS.set_num_threads(parse(Int,get(ENV,"SIC_BLAS_THREADS","1")))
     randseed!(0); seed!(0)
     F=setprecision(BigFloat,bits+256) do
