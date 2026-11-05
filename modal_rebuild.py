@@ -54,13 +54,12 @@ def commands_for(filename: str, workers: int = 8) -> list[list[str]]:
         construction = [["uv", "run", "fibonacci_2208.py", "--fetch-input"]]
         seed = f"fiducial_{dimension}_fibonacci_seed.txt"
     else:
-        heap = "4G" if int(dimension) <= 6000 else "48G"  # Leave native-memory room in the 64 GiB runner.
         work = f"large_d_work/d{dimension}"
         julia = ["env", f"LARGE_D_WORK={work}", "julia", "--project=.", "--gcthreads=1",
-                 f"--heap-size-hint={heap}"]
+                 "--heap-size-hint=4G"]
         seed = f"fiducial_{dimension}_stark.txt"
         construction = [[*julia, f"--threads={workers}", "stark_large.jl", dimension, "units"],
-                        [*julia, "--threads=1", "stark_large.jl", dimension, "tensors"],
+                        [*julia, f"--threads={workers}", "stark_large.jl", dimension, "tensors"],
                         ["uv", "run", "reconstruct_large.py", f"{work}/export",
                          "--work", f"{work}/reconstruction", "--output", seed]]
     return [*construction, ["uv", "run", "refine_large.py", seed, "--output", filename,
