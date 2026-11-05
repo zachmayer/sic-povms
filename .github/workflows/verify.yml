@@ -51,3 +51,23 @@ jobs:
       - run: uv run verify.py fiducials/fiducial_39604.txt
       # --precise on fiducial_39604.txt takes about 12 hours, past the 6-hour job limit; it is run by hand (RESULTS.md).
       - run: uv run verify.py --precise $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v fiducial_39604.txt)
+
+  # Dependabot's PRs merge themselves. This job checks nothing out, so the PR's
+  # code never runs with this write token, and --match-head-commit refuses a
+  # head that moved after this run saw it.
+  merge-dependabot:
+    needs: [verify]
+    # Only someone with write access can push to Dependabot's branch, and they
+    # can push to main anyway. Accepted: reopening a closed Dependabot PR, which
+    # Triage allows, gets it merged once the checks pass.
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - run: gh pr merge --squash --match-head-commit "$PR_HEAD_SHA" "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
