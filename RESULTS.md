@@ -117,9 +117,20 @@ The table gives the companion forms of the four standard-Zauner large-d files; [
 
 The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is type F_a; the standard 2208 file has type F_z ([Grassl–Scott, Proposition III.5](https://arxiv.org/abs/1707.02944v2)).
 
+### Direct-ghost local checks
+
+`stark_large.jl` builds the ghost at 2304 bits from the double-sine series, rounds it to 2048 bits and checks one residual. On macOS arm64 (Julia 1.13.3, one thread), against the earlier initial ghost plus Newton refinement:
+
+| d | old initial + Newton (s) | direct ghost (s) | old / direct RSS (GB) | direct residual | Newton steps, old / direct |
+|---:|---:|---:|---:|---|---:|
+| 2208 | 103.93 | 82.11 | 3.44 / 2.74 | 2^(-2040.54) | 70 / 0 |
+| 5779 | 797.19 | 253.22 | 5.31 / 2.99 | 2^(-2037.93) | 70 / 0 |
+
+The earlier and direct ghosts agree to 2032 bits (2208) and 2020 bits (5779). Both pipelines export identical units, labels and metadata at both dimensions, and their refinements reproduce the published files byte for byte.
+
 ### 39604 provenance
 
-`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix that `stark_large.jl` now carries; the fix changes only the conjugation stage, which ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. This repository's own scripts have not yet rebuilt it: we estimate it at 4–5 days of one 8-core machine with about 100 GiB of memory, about twice the prototype's stage total below, because `stark_large.jl` computes the units in one process rather than eight workers and cloud cores are slower. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
+`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix; the corrected conjugation ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. This repository's own scripts have not yet rebuilt it. Its rebuild time and peak memory with these scripts are unmeasured. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
 
 | stage | wall time (s) |
 |---|---:|
@@ -134,16 +145,16 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### Linux rebuild measurements
 
-`modal_rebuild.py` rebuilt each file from the scripts of PR #13 (tested at commit `61f8bdd`) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used one language thread and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
+`modal_rebuild.py` rebuilt the files from the scripts of PR #14 (tested at commit `f1718b3`; the Fibonacci file doesn't use `stark_large.jl`, so its run is from PR #13) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used one language thread and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
 
 | published file | run ID | construction (s) | refinement (s) | matching SHA-256 |
 |---|---|---:|---:|---|
-| `fiducials/fiducial_2208.txt` | `670789f50de74eb98bec9da4a0f31436` | 1,283.23 | 282.72 | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
+| `fiducials/fiducial_2208.txt` | `6eba9491709643db987d3351bc4cbea0` | 1,154.03 | 267.05 | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
 | `fibonacci/fiducial_2208.txt` | `5addfd9815574878aa6ff4a877824e3a` | 83.48 | 285.24 | `811ca49245b4c36b0027a0ed42895073e32108104fd15880aeddf57f191eb435` |
-| `fiducials/fiducial_5779.txt` | `99048a3491a0434ea4285e0c95275819` | — | — | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
-| `fiducials/fiducial_15128.txt` | `d800695500334981af50d924498005da` | — | — | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
+| `fiducials/fiducial_5779.txt` | `303a67beb6c74d6084a8b628e3f69841` | 7,884.48 | 3,660.87 | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
+| `fiducials/fiducial_15128.txt` | `173ff6c5854a44dc90d63da8825e4bb7` | — | — | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-All four rebuilt files are byte-identical to the published ones. The 5779 and 15128 runs took two and seven container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume, so the runner recorded only partial times for them. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume. Before the conjugation fix, at commit `d104d3e`, rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`) were also byte-identical.
+All four rebuilt files are byte-identical to the published ones. The 15128 run took three container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume, so the runner recorded only partial times for it. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume. Before the conjugation fix, at commit `d104d3e`, rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`) were also byte-identical.
 
 ### Saved-file verification
 

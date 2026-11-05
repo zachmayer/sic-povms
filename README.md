@@ -32,7 +32,7 @@ The precise mode bounds errors in the saved decimal coordinates; these remain nu
 
 **The other 103 in 197..300:** `stark.jl` implements the algebraic method of [Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), using Flammia's [Zauner.jl](https://github.com/sflammia/Zauner.jl), pinned by commit. Its comments explain the replacements for costly library steps and its canonical representative rule. `refine.py` takes the resulting seed to the published precision.
 
-**Large dimensions:** `stark_large.jl` uses a companion-form cocycle and streamed trace calculations. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. Pin rationale is in `representatives.toml`; the Julia header states the unpinned rule tested by `test_large.py`. The 39604 file comes from the prototype these scripts were ported from; its rebuild with them is deferred ([provenance](RESULTS.md#39604-provenance)).
+**Large dimensions:** `stark_large.jl` builds the companion-form cocycle ghost directly at full precision from a double-sine series, then streams units and traces. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. Pin rationale is in `representatives.toml`; the Julia header states the unpinned rule tested by `test_large.py`. The 39604 file comes from the prototype these scripts were ported from; its rebuild with them is deferred ([provenance](RESULTS.md#39604-provenance)).
 
 **Fibonacci 2208:** `fibonacci_2208.py` searches the antiunitary fixed space subject to alignment constraints, with its prototype's ambient random seed fixed in the script. It uses the same large-d refiner.
 
@@ -59,7 +59,7 @@ julia --project=. --threads=1 --gcthreads=1 stark_large.jl "$d"
 uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
-`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, supply the second positional argument and a fresh work directory. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints; if a stage rejects a resume, move its subdirectory of the work directory aside (or pass `refine_large.py` a fresh `--work`). Otherwise rerun the same commands to resume.
+`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, supply the second positional argument and a fresh work directory. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints. A Julia source, platform or precision mismatch needs a fresh `LARGE_D_WORK`; for a reconstruction or refinement mismatch, move that subdirectory aside or pass `refine_large.py` a fresh `--work`. Otherwise rerun the same commands to resume.
 
 For the published Fibonacci file:
 
