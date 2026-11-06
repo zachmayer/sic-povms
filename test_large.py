@@ -88,7 +88,7 @@ def main() -> None:
                        JULIA_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", MKL_NUM_THREADS="1")
     fixture = work / "fixture"
     shutil.copytree(ROOT, fixture, ignore=shutil.ignore_patterns(*COPY_IGNORE))
-    checked(["julia", "--project=.", "--threads=1", "--gcthreads=1", "--heap-size-hint=4G", "test_conjugation.jl"],
+    checked(["julia", "--project=.", "--threads=2", "--gcthreads=1", "--heap-size-hint=4G", "test_conjugation.jl"],
             fixture, environment, work / "conjugation.log")
     results = {}
     for d in (19, 48):

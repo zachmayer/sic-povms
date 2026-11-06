@@ -53,16 +53,20 @@ uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
 
 For the large-d companion-form construction:
 
+On macOS, `tmutil addexclusion <work dir>` keeps the tensors out of Time Machine backups. Local snapshots still pin each deleted tensor predecessor (about 48 GB at d = 57966) until macOS purges them; if the disk fills, the run stops at a checked write, and `sudo tmutil deletelocalsnapshots /` frees the space before resuming.
+
+Construction holds a kernel lock on its work directory, released when the process exits. Ctrl-C during a threaded stage may not exit promptly; `kill -9` is safe to resume from.
+
 ```sh
 d=5779
 work="${LARGE_D_WORK:-large_d_work/d$d}"
 LARGE_D_WORK="$work" julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=4G stark_large.jl "$d" units
-LARGE_D_WORK="$work" julia --project=. --threads=1 --gcthreads=1 --heap-size-hint=4G stark_large.jl "$d" tensors
+LARGE_D_WORK="$work" julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=4G stark_large.jl "$d" tensors
 uv run reconstruct_large.py "$work/export" --work "$work/reconstruction" --output "fiducial_${d}_stark.txt"
 uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
-`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, append the bit count after the phase in both commands and use a fresh work directory. Unit rows use up to eight Julia threads; tensor work starts in a fresh single-threaded process. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints. A Julia source, platform or precision mismatch needs a fresh `LARGE_D_WORK`; for a reconstruction or refinement mismatch, move that subdirectory aside or pass `refine_large.py` a fresh `--work`. Otherwise rerun the same commands to resume.
+`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, append the bit count after the phase in both commands and use a fresh work directory. Unit rows and tensor slices use up to eight Julia threads in separate processes. Tensor values live in fixed-size file records; each trace axis commits before its predecessor is deleted. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints. A Julia source, platform or precision mismatch needs a fresh `LARGE_D_WORK`; for a reconstruction or refinement mismatch, move that subdirectory aside or pass `refine_large.py` a fresh `--work`. Otherwise rerun the same commands to resume.
 
 For the published Fibonacci file:
 
