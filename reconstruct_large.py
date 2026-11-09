@@ -12,8 +12,9 @@ projections complete the missing overlaps. Rejecting other eigenpairs is a
 search heuristic, not a proof that the corresponding shift cannot give a SIC.
 
 Read metadata.json, ComplexF64 units.bin in Julia order, and Int64 label pairs.
-The owner/sign maps use 5*d*d memory-mapped bytes. Each numerical stage resumes
-from atomic files under --work. Representative choices are in the Julia header.
+The owner/sign maps use 5*d*d bytes of RAM, then read-only files. Each
+numerical stage resumes from atomic files under --work. Representative choices
+are in the Julia header.
 """
 
 import argparse
@@ -144,35 +145,45 @@ class Reconstruction:
         """Map each standard displacement to a 1-based orbit index and its ±1 sign.
 
         Unknown entries have owner=sign=0; signs account for reducing labels mod d.
+        The maps are built in RAM, which takes minutes, and written once. Scattered
+        writes through a writable memmap made macOS write back many times the maps'
+        size. An interrupted build starts again from zero.
         """
         checkpoint = self.work/"owner_progress.json"
-        state = json.loads(checkpoint.read_text()) if checkpoint.exists() else {"next_group": 0}
-        mode = "r+" if checkpoint.exists() else "w+"
-        owner = np.memmap(self.work/"owner.i32", dtype="int32", mode=mode, shape=(self.d, self.d), order="F")
-        signs = np.memmap(self.work/"sign.i8", dtype="int8", mode=mode, shape=(self.d, self.d), order="F")
-        flat_owner, flat_sign = owner.reshape(-1, order="F"), signs.reshape(-1, order="F")
-        transform = np.asarray(self.metadata["standard_map"], dtype=np.int64).reshape(2, 2)
-        matrices = [(transform @ np.asarray(s, dtype=np.int64).reshape(2, 2)) % self.dd
-                    for s in self.metadata["stabilizers"]]
-        started = time.perf_counter()
-        for start in range(state["next_group"], self.size, 262144):
-            stop = min(start+262144, self.size)
-            labels = self.labels[start:stop]
-            owners = np.arange(start+1, stop+1, dtype=np.int32)
-            for matrix in matrices:
-                a = (matrix[0, 0]*labels[:, 0]+matrix[0, 1]*labels[:, 1]) % self.dd
-                b = (matrix[1, 0]*labels[:, 0]+matrix[1, 1]*labels[:, 1]) % self.dd
-                x, y = a % self.d, b % self.d
-                indices = x+self.d*y
-                # Preserve the original Julia g-then-stabilizer overwrite order.
-                np.maximum.at(flat_owner, indices, owners)
-                winners = owners == flat_owner[indices]
-                parity = ((a*b-x*y)//self.d) % 2
-                flat_sign[indices[winners]] = 1-2*parity[winners]
-            owner.flush()
-            signs.flush()
-            save_json(checkpoint, {"next_group": stop, "complete": stop == self.size})
-            emit("owner_progress", groups=stop, total=self.size, seconds=time.perf_counter()-started)
+        paths = (self.work/"owner.i32", self.work/"sign.i8")
+        if not (checkpoint.exists() and json.loads(checkpoint.read_text())["complete"]):
+            flat_owner = np.zeros(self.d*self.d, dtype=np.int32)
+            flat_sign = np.zeros(self.d*self.d, dtype=np.int8)
+            transform = np.asarray(self.metadata["standard_map"], dtype=np.int64).reshape(2, 2)
+            matrices = [(transform @ np.asarray(s, dtype=np.int64).reshape(2, 2)) % self.dd
+                        for s in self.metadata["stabilizers"]]
+            started = time.perf_counter()
+            for start in range(0, self.size, 262144):
+                stop = min(start+262144, self.size)
+                labels = self.labels[start:stop]
+                owners = np.arange(start+1, stop+1, dtype=np.int32)
+                for matrix in matrices:
+                    a = (matrix[0, 0]*labels[:, 0]+matrix[0, 1]*labels[:, 1]) % self.dd
+                    b = (matrix[1, 0]*labels[:, 0]+matrix[1, 1]*labels[:, 1]) % self.dd
+                    x, y = a % self.d, b % self.d
+                    indices = x+self.d*y
+                    # Preserve the original Julia g-then-stabilizer overwrite order.
+                    np.maximum.at(flat_owner, indices, owners)
+                    winners = owners == flat_owner[indices]
+                    parity = ((a*b-x*y)//self.d) % 2
+                    flat_sign[indices[winners]] = 1-2*parity[winners]
+                emit("owner_progress", groups=stop, total=self.size, seconds=time.perf_counter()-started)
+            # Flat indices x+d*y are the column-major bytes of the (d, d) maps.
+            for path, values in zip(paths, (flat_owner, flat_sign), strict=True):
+                temporary = path.with_suffix(path.suffix+".part")
+                with temporary.open("wb") as handle:
+                    values.tofile(handle)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                temporary.replace(path)
+            save_json(checkpoint, {"next_group": self.size, "complete": True})
+        owner, signs = (np.memmap(path, dtype=dtype, mode="r", shape=(self.d, self.d), order="F")
+                        for path, dtype in zip(paths, ("int32", "int8"), strict=True))
         return owner, signs
 
     def determinant_shifts(self) -> np.ndarray:
