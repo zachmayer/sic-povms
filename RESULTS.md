@@ -145,16 +145,16 @@ The earlier and direct ghosts agree to 2032 bits (2208) and 2020 bits (5779). Bo
 
 ### Linux rebuild measurements
 
-`modal_rebuild.py` rebuilt the files from the scripts of PR #17 (tested at commit `d5dd7c3`; the Fibonacci file doesn't use `stark_large.jl`, so its run is from PR #13) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used eight language threads and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
+`modal_rebuild.py` rebuilt the files from the scripts of PR #19 (commit `bf4743e`, run ID `3111e4513e3942cc8665a71e1edf4807`) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used eight language threads and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
 
-| published file | run ID | construction (s) | refinement (s) | matching SHA-256 |
-|---|---|---:|---:|---|
-| `fiducials/fiducial_2208.txt` | `04aa85021438479bb0991d88cc944314` | 1,115.21 | 334.75 | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
-| `fibonacci/fiducial_2208.txt` | `5addfd9815574878aa6ff4a877824e3a` | 83.48 | 285.24 | `811ca49245b4c36b0027a0ed42895073e32108104fd15880aeddf57f191eb435` |
-| `fiducials/fiducial_5779.txt` | `84cf49b82efb49088dd7dfaee768a654` | 2,975.45 | 4,767.57 | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
-| `fiducials/fiducial_15128.txt` | `71da913a14134a1b96211a6bd2c70d88` | — | — | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
+| published file | construction (s) | refinement (s) | matching SHA-256 |
+|---|---:|---:|---|
+| `fiducials/fiducial_2208.txt` | 1,086.42 | 269.64 | `8d922ad71a48d1c54c887d094bfa8e61f255455ddd1da4e3d4c4ff270f225d48` |
+| `fibonacci/fiducial_2208.txt` | 89.81 | 285.76 | `811ca49245b4c36b0027a0ed42895073e32108104fd15880aeddf57f191eb435` |
+| `fiducials/fiducial_5779.txt` | 3,760.04 | 4,979.14 | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
+| `fiducials/fiducial_15128.txt` | ≥ 25,895.52 | ≥ 34,932.63 | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-All four rebuilt files are byte-identical to the published ones. The 15128 run took nine container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume, so the runner recorded only partial times for it. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume. Before the conjugation fix, at commit `d104d3e`, rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`) were also byte-identical.
+All four rebuilt files are byte-identical to the published ones. The 15128 run took three container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume. A stage that a container restart interrupted records only its final attempt, so its times are lower bounds. At `92f1477`, the reconstruction commit of the d = 57966 run, run `78b61429ab0845619584422f502cbef7` rebuilt both 2208 files and 5779 byte-identically before it was stopped for the cleanup. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume. Before the conjugation fix, at commit `d104d3e`, rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`) were also byte-identical.
 
 ### Saved-file verification
 
