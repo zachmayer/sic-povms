@@ -52,6 +52,15 @@ def save_array(path: Path, value: np.ndarray) -> None:
     temporary.replace(path)
 
 
+def save_raw(path: Path, value: np.ndarray) -> None:
+    """Write raw bytes, synced to disk before the rename publishes them."""
+    temporary = path.with_suffix(path.suffix+".part")
+    with temporary.open("wb") as handle:
+        value.tofile(handle)
+        os.fsync(handle.fileno())
+    temporary.replace(path)
+
+
 def digest(path: Path) -> str:
     result = hashlib.sha256()
     with path.open("rb") as handle:
@@ -145,13 +154,13 @@ class Reconstruction:
         """Map each standard displacement to a 1-based orbit index and its ±1 sign.
 
         Unknown entries have owner=sign=0; signs account for reducing labels mod d.
-        The maps are built in RAM, which takes minutes, and written once. Scattered
-        writes through a writable memmap made macOS write back many times the maps'
-        size. An interrupted build starts again from zero.
+        The maps are built in RAM in minutes and written once; scattered writes
+        through a writable memmap would make macOS write back many times their size.
+        An interrupted build starts again from zero.
         """
+        owner_path, sign_path = self.work/"owner.i32", self.work/"sign.i8"
         checkpoint = self.work/"owner_progress.json"
-        paths = (self.work/"owner.i32", self.work/"sign.i8")
-        if not (checkpoint.exists() and json.loads(checkpoint.read_text())["complete"]):
+        if not checkpoint.exists():
             flat_owner = np.zeros(self.d*self.d, dtype=np.int32)
             flat_sign = np.zeros(self.d*self.d, dtype=np.int8)
             transform = np.asarray(self.metadata["standard_map"], dtype=np.int64).reshape(2, 2)
@@ -174,17 +183,12 @@ class Reconstruction:
                     flat_sign[indices[winners]] = 1-2*parity[winners]
                 emit("owner_progress", groups=stop, total=self.size, seconds=time.perf_counter()-started)
             # Flat indices x+d*y are the column-major bytes of the (d, d) maps.
-            for path, values in zip(paths, (flat_owner, flat_sign), strict=True):
-                temporary = path.with_suffix(path.suffix+".part")
-                with temporary.open("wb") as handle:
-                    values.tofile(handle)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                temporary.replace(path)
-            save_json(checkpoint, {"next_group": self.size, "complete": True})
-        owner, signs = (np.memmap(path, dtype=dtype, mode="r", shape=(self.d, self.d), order="F")
-                        for path, dtype in zip(paths, ("int32", "int8"), strict=True))
-        return owner, signs
+            save_raw(owner_path, flat_owner)
+            save_raw(sign_path, flat_sign)
+            save_json(checkpoint, {"complete": True})
+        shape = (self.d, self.d)
+        return (np.memmap(owner_path, dtype="int32", mode="r", shape=shape, order="F"),
+                np.memmap(sign_path, dtype="int8", mode="r", shape=shape, order="F"))
 
     def determinant_shifts(self) -> np.ndarray:
         """First shift per det(M): labels give [a-q_b*b,b] for M=a*I+b*L.
