@@ -92,6 +92,5 @@ After rebuilding, require `git diff --exit-code fiducials/ fibonacci/`.
 ## To do
 
 - **January 2027:** rebuild d = 39604 with the repository's scripts on a suitably sized 8-core machine; [acceptance checks](RESULTS.md#39604-provenance).
-- **After the d = 57966 reconstruction:** apply the deferred `build_owner` nits from the [PR #19 panel](https://github.com/zachmayer/sic-povms/pull/19): marker vs. size check, the dead `next_group` key, the redundant `flush`, directory fsync. They change the script hash, so they need their own `test_large.py` and Modal rebuild.
 
 Public domain (CC0).
