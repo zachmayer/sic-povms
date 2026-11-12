@@ -1,4 +1,4 @@
-# Weekly version updates for the SHA-pinned actions, grouped into one PR.
+# Weekly version updates for the actions locked in actions.lock, grouped into one PR.
 # Actions only, deliberately: Manifest.toml and the scripts' inline pins
 # change published bytes, so they move by hand with a rebuild (CLAUDE.md).
 # Cooldown: a release waits 7 days before a version update proposes it, time
