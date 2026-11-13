@@ -3,8 +3,7 @@
 # Docs: https://gh.io/actions-lockfile
 version: 'v0.0.3'
 workflows:
-    '.github/workflows/verify-lockfile.yml':
-        - 'actions/checkout@v7.0.1'
+    '.github/workflows/verify-lockfile.yml': []
     '.github/workflows/verify.yml':
         - 'actions/checkout@v7.0.1'
         - 'astral-sh/setup-uv@v10.3.3'

@@ -38,6 +38,15 @@ jobs:
           mkdir -p "$RUNNER_TEMP/fibonacci"
           cp fiducials/fiducial_197.txt "$RUNNER_TEMP/fibonacci/"
           ! uv run verify.py "$RUNNER_TEMP/fibonacci/fiducial_197.txt"
+      # Dependabot's merge waits on this job, so on its PRs this job verifies the
+      # lockfile too: the Verify lockfile workflow is not a required check. Only on
+      # its PRs, so a bad release of the unpinned extension (that workflow says why)
+      # can't turn every other run red.
+      - name: Verify actions.lock
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-actions-lock && gh actions-lock --verify
 
   precise:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
