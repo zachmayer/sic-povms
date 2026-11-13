@@ -17,19 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       # https://docs.zizmor.sh
       # Audits every workflow in the repo and dependabot.yml for security
       # flaws. The action pins zizmor itself, so new rules arrive only with a
       # Dependabot bump, which merges only once they pass.
-      - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+      - uses: zizmorcore/zizmor-action@v0.8.1
         with:
           min-severity: medium
           advanced-security: false
           annotations: true
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@v10.3.3
       # fiducial_39604.txt takes about 2 minutes even in default mode; the weekly job checks it.
       - run: uv run verify.py $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v fiducial_39604.txt)
       - run: uv run verify.py fiducials/fiducial_197.txt fiducials/fiducial_198.txt --precise
@@ -38,16 +38,25 @@ jobs:
           mkdir -p "$RUNNER_TEMP/fibonacci"
           cp fiducials/fiducial_197.txt "$RUNNER_TEMP/fibonacci/"
           ! uv run verify.py "$RUNNER_TEMP/fibonacci/fiducial_197.txt"
+      # Dependabot's merge waits on this job, so on its PRs this job verifies the
+      # lockfile too: the Verify lockfile workflow is not a required check. Only on
+      # its PRs, so a bad release of the unpinned extension (that workflow says why)
+      # can't turn every other run red.
+      - name: Verify actions.lock
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-actions-lock && gh actions-lock --verify
 
   precise:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv run verify.py fiducials/fiducial_39604.txt
       # --precise on fiducial_39604.txt takes about 12 hours, past the 6-hour job limit; it is run by hand (RESULTS.md).
       - run: uv run verify.py --precise $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v fiducial_39604.txt)
@@ -61,7 +70,7 @@ jobs:
     # can push to main anyway. Accepted: reopening a closed Dependabot PR, which
     # Triage allows, gets it merged once the checks pass.
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: write
       pull-requests: write
