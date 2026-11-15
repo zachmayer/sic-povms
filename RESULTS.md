@@ -122,7 +122,7 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### 39604 provenance
 
-`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix; the corrected conjugation ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
+`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix; the corrected conjugation ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. Its rebuild needs the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
 
 | stage | wall time (s) |
 |---|---:|
@@ -137,7 +137,7 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### 57966 run
 
-`fiducials/fiducial_57966.txt` (SHA-256 `262ceae8ddfdf50a5e02c3d97916f62610e5ff042598926b3a8b61ddf52eb107`) was built once, on the M2 Max (96 GiB, at most eight cores), at 2304 bits; the integer-relation step needed 1378 bits. Since then `reconstruct_large.py` has had only a behavior-preserving cleanup, checked by the byte-identical Linux rebuilds below. A second-platform rebuild is planned for January 2027.
+`fiducials/fiducial_57966.txt` (SHA-256 `262ceae8ddfdf50a5e02c3d97916f62610e5ff042598926b3a8b61ddf52eb107`) was built once, on the M2 Max (96 GiB, at most eight cores), at 2304 bits; the integer-relation step needed 1378 bits. Since then `reconstruct_large.py` has had only a behavior-preserving cleanup, checked by the byte-identical Linux rebuilds below.
 
 | stage | dates (2026) | peak RSS (GiB) |
 |---|---|---:|
@@ -159,7 +159,7 @@ The laptop was in daily use, so stages were paused and restarted from checkpoint
 | `fiducials/fiducial_5779.txt` | 3,760.04 | 4,979.14 | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
 | `fiducials/fiducial_15128.txt` | ≥ 25,895.52 | ≥ 34,932.63 | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-All four rebuilt files are byte-identical to the published ones. The 15128 run took three container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume. A stage that a container restart interrupted records only its final attempt, so its times are lower bounds. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume.
+All four rebuilt files are byte-identical to the published ones. The 15128 run took three container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume. A stage that a container restart interrupted records only its final attempt, so its times are lower bounds.
 
 ### Saved-file verification
 

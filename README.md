@@ -1,4 +1,4 @@
-# Numerical SIC-POVM fiducials in 109 dimensions, up to d = 57966
+# Numerical SIC-POVM fiducials in 109 dimensions
 
 A SIC (symmetric informationally complete POVM) in dimension d is a set of d² unit vectors in ℂ^d with |⟨ψ_i|ψ_j⟩|² = 1/(d+1) for i ≠ j. Here each SIC is the Weyl–Heisenberg orbit of one fiducial ψ under X^a Z^b. Zauner conjectured in 1999 ([thesis](http://www.gerhardzauner.at/documents/gz-quantendesigns.pdf); [English](https://doi.org/10.1142/S0219749911006776)) that a SIC exists in every dimension.
 
@@ -23,7 +23,7 @@ uv run verify.py             # all published files; NumPy, threshold 1e-12
 uv run verify.py --precise   # FLINT 640-bit balls, threshold 1e-147
 ```
 
-The precise mode bounds errors in the saved decimal coordinates; these remain numerical checks. CI runs the default check on every PR and push, and the precise check weekly. 39604 and 57966 get the default check weekly and their precise checks by hand (about 12 and 18 hours). [RESULTS.md](RESULTS.md) records verification measurements and construction history.
+The precise mode bounds errors in the saved decimal coordinates; these remain numerical checks. On one thread of an M2 Max, d = 57966 takes about 5 minutes in default mode and 18 hours in precise mode. [RESULTS.md](RESULTS.md) records the bounds and construction measurements.
 
 ## Methods
 
@@ -84,6 +84,7 @@ After rebuilding, require `git diff --exit-code fiducials/ fibonacci/`.
 
 ## To do
 
-- **January 2027:** rebuild d = 39604 with the repository's scripts on a suitably sized 8-core machine ([acceptance checks](RESULTS.md#39604-provenance)), and rebuild d = 57966 on a second platform ([run](RESULTS.md#57966-run)).
+- Rebuild d = 39604 with this repo's scripts on an 8-core machine with enough memory ([acceptance checks](RESULTS.md#39604-provenance)).
+- Rebuild d = 57966 on a second platform ([run](RESULTS.md#57966-run)).
 
 Public domain (CC0).
