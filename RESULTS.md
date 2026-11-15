@@ -137,7 +137,7 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### 57966 run
 
-`fiducials/fiducial_57966.txt` (SHA-256 `262ceae8ddfdf50a5e02c3d97916f62610e5ff042598926b3a8b61ddf52eb107`) was built once, on the M2 Max (96 GiB, at most eight cores), with the scripts at `92f1477`, at 2304 bits; the integer-relation step needed 1378 bits. The Julia stages ran before `92f1477` existed, from the identical scripts of `1cd5a2f`. Since then only `reconstruct_large.py` has changed, by the behavior-preserving `bf4743e`. A second-platform rebuild is planned for January 2027.
+`fiducials/fiducial_57966.txt` (SHA-256 `262ceae8ddfdf50a5e02c3d97916f62610e5ff042598926b3a8b61ddf52eb107`) was built once, on the M2 Max (96 GiB, at most eight cores), at 2304 bits; the integer-relation step needed 1378 bits. A second-platform rebuild is planned for January 2027.
 
 | stage | dates (2026) | peak RSS (GiB) |
 |---|---|---:|
@@ -146,11 +146,11 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 | Reconstruction | 9–10 Nov | 22.0 |
 | 640-bit refinement, eight workers, 16 steps | 10–13 Nov | not measured |
 
-The laptop was in daily use, so stages were paused, restarted from checkpoints and shared the machine; the dates are not benchmarks. `verify.py` passed in 279 s; `verify.py --precise` took 65,068 s on one thread ([bounds](#saved-file-verification)).
+The laptop was in daily use, so stages were paused and restarted from checkpoints; the dates are not benchmarks. `verify.py` passed in 279 s; `verify.py --precise` took 65,068 s on one thread ([bounds](#saved-file-verification)).
 
 ### Linux rebuild measurements
 
-`modal_rebuild.py` rebuilt the files from the scripts of PR #19 (commit `bf4743e`, run ID `3111e4513e3942cc8665a71e1edf4807`) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used eight language threads and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
+`modal_rebuild.py` rebuilt the files from the current scripts (run ID `3111e4513e3942cc8665a71e1edf4807`) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used eight language threads and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
 
 | published file | construction (s) | refinement (s) | matching SHA-256 |
 |---|---:|---:|---|
@@ -159,11 +159,11 @@ The laptop was in daily use, so stages were paused, restarted from checkpoints a
 | `fiducials/fiducial_5779.txt` | 3,760.04 | 4,979.14 | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
 | `fiducials/fiducial_15128.txt` | ≥ 25,895.52 | ≥ 34,932.63 | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-All four rebuilt files are byte-identical to the published ones. The 15128 run took three container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume. A stage that a container restart interrupted records only its final attempt, so its times are lower bounds. Run `78b61429ab0845619584422f502cbef7`, at `92f1477`, also rebuilt both 2208 files and 5779 byte-identically. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume.
+All four rebuilt files are byte-identical to the published ones. The 15128 run took three container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume. A stage that a container restart interrupted records only its final attempt, so its times are lower bounds. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume.
 
 ### Saved-file verification
 
-A fresh offline `uv run verify.py` sweep of the 109 files at `b5da7a8`, before 57966, passed all of them in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
+A fresh offline `uv run verify.py` sweep of the 109 files published before 57966 passed all of them in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
 
 | published file | maximum deviation, upper bound (rounded) | U_Z residual, upper bound (rounded) |
 |---|---:|---:|
@@ -176,14 +176,10 @@ The 5779 and 15128 precise checks ran in one call on the M2 Max: 4,504 s wall ti
 
 ### Literature status
 
-- **2208:** Horodecki, Rudnicki and Życzkowski's [2020 survey, §II.1](https://arxiv.org/abs/2002.03233) credits Grassl with a numerical SIC in this dimension. Grassl's [2021 slides, slide 12](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf) also report it. We found no posted 2208 fiducial in the tables described below. Orbit equivalence to either of this repository's 2208 files has not been checked.
-- **5779:** a prior SIC is included in Appleby, Bengtsson, Grassl, Harrison and McConnell's [Stark-unit construction](https://arxiv.org/abs/2112.05552), with [5779 data posted by Grassl](http://s208785153.online.de/SICPOVM/5779/). This repository's result is numerical; orbit equivalence has not been checked.
-- **15128:** we found no prior SIC in the sources checked. [Bengtsson–McConnell, arXiv:2606.23535v1, §2](https://arxiv.org/html/2606.23535v1#S2), dated 22 June 2026, explicitly states that at d = 15128 “as yet no SIC has been found.” This dates the literature claim; it does not establish the absence of later or unpublished work.
-- **39604:** Bengtsson, Grassl and McConnell published a SIC in this dimension in [arXiv:2403.02872](https://arxiv.org/abs/2403.02872), so this is a replication. We found no posted fiducial: [Grassl's BGM table](http://s208785153.online.de/SICPOVM/) lists 39604 with empty Magma and numerical-data cells (checked 30 October 2026). This repository supplies the numerical file with the [prototype provenance and rebuild gap](#39604-provenance) above. Orbit equivalence to BGM's SIC has not been checked.
-- **57966:** we found no prior SIC in the sources checked on 15 November 2026. 57966 lies in the Q(√21) dimension tower (6, 24, 111, 528, 2526, 12099, 57966, …), not the n² + 3 family that the Stark-unit papers above treat. Grassl's tables stop at 39604; [BGM §9](https://arxiv.org/html/2403.02872v1#S9) lists partly unpublished constructions up to 45372 but not 57966; Grassl's 2026 seminar abstract (below) calls 39604 the largest.
+What we found for the large dimensions (sources checked 15 November 2026). Orbit equivalence with earlier SICs has not been checked.
 
-The literature check used these additional records:
-
-- [Grassl's SIC tables](http://s208785153.online.de/SICPOVM/), the frame target of [sicpovm.markus-grassl.de](http://sicpovm.markus-grassl.de/), are reachable over plain HTTP. The checked tables list 5779 with linked data and have no 2208 or 15128 entry.
-- Grassl's [UiO seminar abstract for 17 September 2026](https://www.mn.uio.no/math/english/research/projects/qombine/events/seminars/2026-09-17-grassl.html) reports Stark-unit SICs “in some four- and five-digit dimensions, the largest being 39604”. It does not enumerate those dimensions, so this statement alone does not resolve the status of 15128.
-
+- **2208:** reported by Grassl ([Horodecki, Rudnicki and Życzkowski, §II.1](https://arxiv.org/abs/2002.03233); [Grassl's 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), slide 12). We found no posted fiducial.
+- **5779:** [Appleby, Bengtsson, Grassl, Harrison and McConnell](https://arxiv.org/abs/2112.05552), with [data posted by Grassl](http://s208785153.online.de/SICPOVM/5779/).
+- **15128:** none found. [Bengtsson and McConnell](https://arxiv.org/html/2606.23535v1#S2) (June 2026) write that “as yet no SIC has been found.”
+- **39604:** [Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872). We found no posted fiducial in [Grassl's tables](http://s208785153.online.de/SICPOVM/).
+- **57966:** none found.
