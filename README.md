@@ -9,9 +9,8 @@ This repo gives numerical fiducials for every d from 197 to 300, and for d = 220
 
 We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. Of the larger dimensions, SICs were known before in 2208, 5779 and 39604 (we found no posted 39604 fiducial); we found none in 15128 or 57966 ([literature status](RESULTS.md#literature-status)).
 
-There are 110 files in 109 dimensions: 109 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace (ω = e^(2πi/3)).
+There are 110 files in 109 dimensions: 109 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; [RESULTS.md](RESULTS.md) gives the eigenvalue.
 
-This repo supplies explicit fiducials. Radchenko and Wheeler's [*Real quadratic fields and finite quantum dilogarithms I*](https://arxiv.org/abs/2609.21892) and [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf) claim the results needed for Zauner's conjecture in general; we have not checked them.
 
 *Mostly AI-generated: Gemini 4 Argon found the first algebraic SICs; Claude Opus 5.5 found d = 198, swept to 300, ran d = 57966, and wrote the small-d scripts and this README; GPT-6 Astra found both 2208 SICs; GPT-6 found 5779 and 15128 and wrote the FFT verifier and large-d pipeline.*
 
@@ -24,7 +23,7 @@ uv run verify.py             # all published files; NumPy, threshold 1e-12
 uv run verify.py --precise   # FLINT 640-bit balls, threshold 1e-147
 ```
 
-The precise mode bounds errors in the saved decimal coordinates; these remain numerical checks. Python 3.12+ and uv suffice for the verifier; the large-d numerical Python scripts pin Python 3.13 and their dependencies in their headers. CI runs the default check on every PR and push, and the precise check weekly. 39604 and 57966 get the default check weekly and their precise checks by hand (about 12 and 18 hours). [RESULTS.md](RESULTS.md) records verification measurements and construction history.
+The precise mode bounds errors in the saved decimal coordinates; these remain numerical checks. CI runs the default check on every PR and push, and the precise check weekly. 39604 and 57966 get the default check weekly and their precise checks by hand (about 12 and 18 hours). [RESULTS.md](RESULTS.md) records verification measurements and construction history.
 
 ## Methods
 
@@ -49,8 +48,6 @@ uv run search.py 19
 uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
 ```
 
-`STARK_CHECKPOINTS=<existing-dir>` saves the smaller construction's expensive steps. Resume with the same command and directory.
-
 For the large-d companion-form construction:
 
 ```sh
@@ -62,9 +59,7 @@ uv run reconstruct_large.py "$work/export" --work "$work/reconstruction" --outpu
 uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
-`LARGE_D_WORK` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard asks for more, append the bit count after the phase in both Julia commands and use a fresh work directory. Rerun the same commands to resume; `kill -9` is safe. Each stage checks its source and inputs: a Julia source, platform or precision change needs a fresh `LARGE_D_WORK`, and a reconstruction or refinement change needs that stage's subdirectory moved aside (or `refine_large.py --work <fresh dir>`).
-
-On macOS, `tmutil addexclusion <work dir>` keeps tensors out of Time Machine, but local snapshots can still hold deleted tensors (about 48 GB each at d = 57966). If the disk fills, the run stops cleanly; `sudo tmutil deletelocalsnapshots /` frees the space.
+`LARGE_D_WORK` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard asks for more, append the bit count after the phase in both Julia commands and use a fresh work directory. Rerun the same commands to resume.
 
 For the published Fibonacci file:
 

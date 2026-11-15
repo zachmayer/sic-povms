@@ -3,7 +3,7 @@
 Construction measurements for 89 of the 104 dimensions in 197..300, each built by `stark.jl` (Julia 1.13.2, one thread) and `refine.py`. The other 15 are d = 198, found by `search.py`, and 14 algebraic files regenerated as described below.
 
 - Form: the reduced binary quadratic form ⟨a,b,c⟩ of the principal class `stark.jl` chose; q its conductor; h the class number; ω = e^(2πi/3).
-- Mac: 12-core Apple silicon, 96 GB, up to 6 jobs at once. Modal: one Linux x86 container per dimension, about 2.2× slower per job; times there are of the last, checkpoint-resumed attempt, so they leave out the Gauss–Newton steps of earlier preempted attempts (273: about 22 hours from first start to finish).
+- Mac: 12-core Apple silicon, 96 GB, up to 6 jobs at once. Modal: one Linux x86 container per dimension, about 2.2× slower per job; times there are of the last, checkpoint-resumed attempt, so they leave out the Gauss–Newton steps of earlier preempted attempts.
 - Times are wall-clock; peak memory is from `time`. 294 ran its Gauss–Newton on Modal and was finished on the Mac from those checkpoints; its row is the Mac run.
 - The final `stark.jl` and `refine.py` regenerate the 14 algebraic files of 197..253 byte for byte on Julia 1.13.2, macOS Apple silicon, independent of random seeds and dimension order.
 - Of the other 89 algebraic files, only 206 and 214 were rerun with the final version; their double-precision seeds changed in the 17th digit and their refined files stayed byte-identical.
@@ -122,7 +122,7 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### 39604 provenance
 
-`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix; the corrected conjugation ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. This repository's own scripts have not yet rebuilt it. Its rebuild time and peak memory with these scripts are unmeasured. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
+`fiducials/fiducial_39604.txt` (SHA-256 `4c20cc469b97e09b9c51995909121e3f3b1a0bf23f4d8ae61a2a1214a9e9b8b3`) was built on an Apple M2 Max (96 GiB, at most eight cores) by the prototype that this repository's large-d scripts were ported from. Its 2048-bit ghost, unit and trace checkpoints were computed before the conjugation fix; the corrected conjugation ran after it, as did reconstruction and refinement. `representatives.toml` pins its quotient generators and determinant shift. The rebuild is planned for January 2027, with the same acceptance as the other large files: fresh construction, a byte comparison on a second platform, and both verifier modes. Until then its reproducibility from these scripts is unvalidated; the numerical checks below don't depend on it.
 
 | stage | wall time (s) |
 |---|---:|
@@ -137,20 +137,20 @@ The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is
 
 ### 57966 run
 
-`fiducials/fiducial_57966.txt` (SHA-256 `262ceae8ddfdf50a5e02c3d97916f62610e5ff042598926b3a8b61ddf52eb107`) was built once, on the M2 Max (96 GiB, at most eight cores), at 2304 bits; the integer-relation step needed 1378 bits. A second-platform rebuild is planned for January 2027.
+`fiducials/fiducial_57966.txt` (SHA-256 `262ceae8ddfdf50a5e02c3d97916f62610e5ff042598926b3a8b61ddf52eb107`) was built once, on the M2 Max (96 GiB, at most eight cores), at 2304 bits; the integer-relation step needed 1378 bits. Since then `reconstruct_large.py` has had only a behavior-preserving cleanup, checked by the byte-identical Linux rebuilds below. A second-platform rebuild is planned for January 2027.
 
 | stage | dates (2026) | peak RSS (GiB) |
 |---|---|---:|
 | Group, ghost and units, eight threads (`--heap-size-hint=24G`) | 5–8 Nov | 14.8 |
 | Normal bases, traces and conjugation | 8–9 Nov | 5.4 |
 | Reconstruction | 9–10 Nov | 22.0 |
-| 640-bit refinement, eight workers, 16 steps | 10–13 Nov | not measured |
+| 640-bit refinement, eight workers, 16 steps | 10–13 Nov | 1.4 (parent process) |
 
 The laptop was in daily use, so stages were paused and restarted from checkpoints; the dates are not benchmarks. `verify.py` passed in 279 s; `verify.py --precise` took 65,068 s on one thread ([bounds](#saved-file-verification)).
 
 ### Linux rebuild measurements
 
-`modal_rebuild.py` rebuilt the files from the current scripts (run ID `3111e4513e3942cc8665a71e1edf4807`) in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Julia used eight language threads and eight BLAS threads; the Python scripts set one BLAS/FFT thread per process, with eight refinement workers. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
+`modal_rebuild.py` rebuilt the files from the current scripts in a fresh isolated copy on Linux x86, with 8 vCPU, 64 GiB reserved memory and Julia 1.13.2. Python dependencies are pinned in the script headers. Times are the runner's wall-clock seconds, excluding image building; construction includes reconstruction.
 
 | published file | construction (s) | refinement (s) | matching SHA-256 |
 |---|---:|---:|---|
@@ -163,7 +163,7 @@ All four rebuilt files are byte-identical to the published ones. The 15128 run t
 
 ### Saved-file verification
 
-A fresh offline `uv run verify.py` sweep of the 109 files published before 57966 passed all of them in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
+`uv run verify.py` passes all 110 files. Precise bounds for the largest files:
 
 | published file | maximum deviation, upper bound (rounded) | U_Z residual, upper bound (rounded) |
 |---|---:|---:|
