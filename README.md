@@ -1,19 +1,19 @@
-# Numerical SIC-POVM fiducials in 108 dimensions, up to d = 39604
+# Numerical SIC-POVM fiducials in 109 dimensions, up to d = 57966
 
 A SIC (symmetric informationally complete POVM) in dimension d is a set of d² unit vectors in ℂ^d with |⟨ψ_i|ψ_j⟩|² = 1/(d+1) for i ≠ j. Here each SIC is the Weyl–Heisenberg orbit of one fiducial ψ under X^a Z^b. Zauner conjectured in 1999 ([thesis](http://www.gerhardzauner.at/documents/gz-quantendesigns.pdf); [English](https://doi.org/10.1142/S0219749911006776)) that a SIC exists in every dimension.
 
-This repo gives numerical fiducials for every d from 197 to 300, and for d = 2208, 5779, 15128 and 39604. Together with the results through 196 of [Bengtsson and Grassl](https://arxiv.org/abs/2512.13201), this covers every d ≤ 300. A search of the cited literature found prior SICs in nine of the 104 dimensions in 197..300:
+This repo gives numerical fiducials for every d from 197 to 300, and for d = 2208, 5779, 15128, 39604 and 57966. Together with the results through 196 of [Bengtsson and Grassl](https://arxiv.org/abs/2512.13201), this covers every d ≤ 300. A search of the cited literature found prior SICs in nine of the 104 dimensions in 197..300:
 
 - In papers: 199, 228 and 259 ([Scott](https://arxiv.org/abs/1703.03993)), and 292 ([Bengtsson, Grassl and McConnell](https://arxiv.org/abs/2403.02872)).
-- In talks or surveys: 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), p. 21), and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl).
+- In talks or surveys: 201 ([Grassl, 2021 slides](https://www.math.colostate.edu/~king/codex/slides/Grassl_2021_10_26.pdf), slide 21), and 204, 224, 255 and 288 ([Horodecki, Rudnicki and Życzkowski](https://arxiv.org/abs/2002.03233), crediting Grassl).
 
-We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. Of the larger dimensions, SICs were known before in 2208, 5779 and 39604 (we found no posted 39604 fiducial); we found none in 15128 ([literature status](RESULTS.md#literature-status)).
+We found no prior published SIC in the other 95 dimensions. Unpublished work and unindexed data remain outside the search; orbit equivalence with earlier SICs has not been checked. Of the larger dimensions, SICs were known before in 2208, 5779 and 39604 (we found no posted 39604 fiducial); we found none in 15128 or 57966 ([literature status](RESULTS.md#literature-status)).
 
-There are 109 files in 108 dimensions: 108 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace (ω = e^(2πi/3)).
+There are 110 files in 109 dimensions: 109 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; the construction picks a representative by Galois data, not eigenvalue, so some lie in its ω or ω² eigenspace (ω = e^(2πi/3)).
 
 This repo supplies explicit fiducials. Radchenko and Wheeler's [*Real quadratic fields and finite quantum dilogarithms I*](https://arxiv.org/abs/2609.21892) and [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf) claim the results needed for Zauner's conjecture in general; we have not checked them.
 
-*Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote `stark.jl` (from Argon's), `search.py`, `refine.py` and this README; GPT-6 Astra found both d = 2208 SICs; GPT-6 wrote the FFT verifier and the large-d pipeline, found d = 5779 and 15128, and fixed the conjugation precision that d = 39604 needed.*
+*Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote `stark.jl` (from Argon's), `search.py`, `refine.py` and this README; GPT-6 Astra found both d = 2208 SICs; GPT-6 wrote the FFT verifier and the large-d pipeline, found d = 5779 and 15128, and fixed the conjugation precision that d = 39604 needed; Claude Opus 5.5 ran d = 57966.*
 
 ## Checking the files
 
@@ -24,7 +24,7 @@ uv run verify.py             # all published files; NumPy, threshold 1e-12
 uv run verify.py --precise   # FLINT 640-bit balls, threshold 1e-147
 ```
 
-The precise mode bounds errors in the saved decimal coordinates; these remain numerical checks. Python 3.12+ and uv suffice for the verifier; the large-d numerical Python scripts pin Python 3.13 and their dependencies in their headers. CI runs the default check on every PR and push, and the precise check weekly; 39604 gets the default check weekly and its precise check by hand (about 12 hours). [RESULTS.md](RESULTS.md) records verification measurements and construction history.
+The precise mode bounds errors in the saved decimal coordinates; these remain numerical checks. Python 3.12+ and uv suffice for the verifier; the large-d numerical Python scripts pin Python 3.13 and their dependencies in their headers. CI runs the default check on every PR and push, and the precise check weekly. 39604 and 57966 get the default check weekly and their precise checks by hand (about 12 and 18 hours). [RESULTS.md](RESULTS.md) records verification measurements and construction history.
 
 ## Methods
 
@@ -91,6 +91,6 @@ After rebuilding, require `git diff --exit-code fiducials/ fibonacci/`.
 
 ## To do
 
-- **January 2027:** rebuild d = 39604 with the repository's scripts on a suitably sized 8-core machine; [acceptance checks](RESULTS.md#39604-provenance).
+- **January 2027:** rebuild d = 39604 with the repository's scripts on a suitably sized 8-core machine ([acceptance checks](RESULTS.md#39604-provenance)), and rebuild d = 57966 on a second platform ([run](RESULTS.md#57966-run)).
 
 Public domain (CC0).
