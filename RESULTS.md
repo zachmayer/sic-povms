@@ -1,11 +1,11 @@
 # Numerical results
 
-The 89 dimensions in 199..300 that were not already in this repo: `julia --project=. stark.jl <d>` (Julia 1.13.2, one thread), then `refine.py`, then `verify.py --precise` on the Mac.
+Construction measurements for 89 of the 104 dimensions in 197..300, each built by `stark.jl` (Julia 1.13.2, one thread) and `refine.py`. The other 15 are d = 198, found by `search.py`, and 14 algebraic files regenerated as described below.
 
-- Form: the reduced binary quadratic form ⟨a,b,c⟩ of the principal class `stark.jl` chose; q its conductor; h the class number.
+- Form: the reduced binary quadratic form ⟨a,b,c⟩ of the principal class `stark.jl` chose; q its conductor; h the class number; ω = e^(2πi/3).
 - Mac: 12-core Apple silicon, 96 GB, up to 6 jobs at once. Modal: one Linux x86 container per dimension, about 2.2× slower per job; times there are of the last, checkpoint-resumed attempt, so they leave out the Gauss–Newton steps of earlier preempted attempts (273: about 22 hours from first start to finish).
 - Times are wall-clock; peak memory is from `time`. 294 ran its Gauss–Newton on Modal and was finished on the Mac from those checkpoints; its row is the Mac run.
-- The final `stark.jl` and `refine.py` regenerate the 14 algebraic files of 197..253 byte for byte on Julia 1.13.2, macOS Apple silicon, independent of random seeds and dimension order. Earlier versions also regenerated those 14.
+- The final `stark.jl` and `refine.py` regenerate the 14 algebraic files of 197..253 byte for byte on Julia 1.13.2, macOS Apple silicon, independent of random seeds and dimension order.
 - Of the other 89 algebraic files, only 206 and 214 were rerun with the final version; their double-precision seeds changed in the 17th digit and their refined files stayed byte-identical.
 - Refined 197 and 224 agreed byte for byte across Mac and Linux, despite double-precision seed differences.
 - The last column is the literature search in the README; blank means none found.
@@ -18,85 +18,85 @@ The 89 dimensions in 199..300 that were not already in this repo: `julia --proje
 | 202 | ⟨1,-201,1⟩ | 1 | 8 | 1 | Mac | 790 | 6.7 |  |
 | 204 | ⟨1,-203,1⟩ | 1 | 8 | 1 | Mac | 1383 | 5.6 | talk or survey |
 | 205 | ⟨1,-204,1⟩ | 1 | 14 | 1 | Mac | 1203 | 6.5 |  |
-| 206 | ⟨23,-69,1⟩ | 1 | 8 | e^(2πi·2/3) | Mac | 1087 | 6.6 |  |
+| 206 | ⟨23,-69,1⟩ | 1 | 8 | ω² | Mac | 1087 | 6.6 |  |
 | 208 | ⟨1,-207,1⟩ | 1 | 8 | 1 | Mac | 3387 | 5.4 |  |
-| 209 | ⟨1,-208,1⟩ | 1 | 16 | e^(2πi·1/3) | Mac | 1603 | 5.5 |  |
+| 209 | ⟨1,-208,1⟩ | 1 | 16 | ω | Mac | 1603 | 5.5 |  |
 | 210 | ⟨1,-209,1⟩ | 3 | 12 | 1 | Mac | 4920 | 5.9 |  |
-| 212 | ⟨1,-211,1⟩ | 1 | 12 | e^(2πi·1/3) | Mac | 2008 | 7.2 |  |
+| 212 | ⟨1,-211,1⟩ | 1 | 12 | ω | Mac | 2008 | 7.2 |  |
 | 213 | ⟨1,-212,1⟩ | 1 | 24 | 1 | Mac | 2499 | 5.7 |  |
 | 214 | ⟨1,-213,1⟩ | 1 | 10 | 1 | Mac | 1672 | 7.8 |  |
 | 216 | ⟨1,-215,1⟩ | 1 | 12 | 1 | Mac | 3986 | 5.6 |  |
 | 217 | ⟨1,-216,1⟩ | 1 | 18 | 1 | Mac | 4470 | 6.3 |  |
-| 218 | ⟨1,-217,1⟩ | 1 | 12 | e^(2πi·1/3) | Mac | 2272 | 6.6 |  |
+| 218 | ⟨1,-217,1⟩ | 1 | 12 | ω | Mac | 2272 | 6.6 |  |
 | 219 | ⟨55,-110,1⟩ | 3 | 12 | 1 | Mac | 582 | 5.1 |  |
 | 220 | ⟨1,-219,1⟩ | 1 | 8 | 1 | Mac | 2397 | 6.8 |  |
-| 221 | ⟨1,-220,1⟩ | 1 | 24 | e^(2πi·1/3) | Mac | 3598 | 6.4 |  |
+| 221 | ⟨1,-220,1⟩ | 1 | 24 | ω | Mac | 3598 | 6.4 |  |
 | 222 | ⟨1,-221,1⟩ | 1 | 12 | 1 | Mac | 4012 | 6.1 |  |
-| 224 | ⟨1,-15,1⟩ | 1 | 2 | e^(2πi·2/3) | Mac | 257 | 4.3 | talk or survey |
+| 224 | ⟨1,-15,1⟩ | 1 | 2 | ω² | Mac | 257 | 4.3 | talk or survey |
 | 225 | ⟨1,-224,1⟩ | 1 | 12 | 1 | Mac | 1571 | 5.9 |  |
 | 226 | ⟨1,-225,1⟩ | 1 | 15 | 1 | Mac | 4299 | 8.0 |  |
 | 228 | ⟨37,-47,1⟩ | 3 | 3 | 1 | Mac | 365 | 5.1 | paper |
 | 229 | ⟨1,-228,1⟩ | 1 | 12 | 1 | Mac | 1275 | 6.4 |  |
-| 230 | ⟨1,-229,1⟩ | 1 | 12 | e^(2πi·1/3) | Mac | 3106 | 6.0 |  |
+| 230 | ⟨1,-229,1⟩ | 1 | 12 | ω | Mac | 3106 | 6.0 |  |
 | 231 | ⟨58,-116,1⟩ | 1 | 16 | 1 | Mac | 1701 | 6.6 |  |
 | 232 | ⟨1,-231,1⟩ | 1 | 6 | 1 | Mac | 1654 | 6.4 |  |
-| 233 | ⟨26,-78,1⟩ | 1 | 12 | e^(2πi·2/3) | Mac | 457 | 5.2 |  |
+| 233 | ⟨26,-78,1⟩ | 1 | 12 | ω² | Mac | 457 | 5.2 |  |
 | 234 | ⟨1,-233,1⟩ | 1 | 16 | 1 | Modal | 19017 | 4.9 |  |
 | 235 | ⟨59,-118,1⟩ | 1 | 6 | 1 | Mac | 380 | 5.0 |  |
-| 236 | ⟨1,-235,1⟩ | 1 | 18 | e^(2πi·1/3) | Modal | 15905 | 7.2 |  |
+| 236 | ⟨1,-235,1⟩ | 1 | 18 | ω | Modal | 15905 | 7.2 |  |
 | 237 | ⟨1,-236,1⟩ | 3 | 16 | 1 | Mac | 2782 | 5.4 |  |
 | 238 | ⟨1,-237,1⟩ | 1 | 10 | 1 | Mac | 3184 | 6.0 |  |
 | 240 | ⟨1,-239,1⟩ | 1 | 16 | 1 | Modal | 8899 | 16.2 |  |
-| 242 | ⟨3,-27,1⟩ | 1 | 1 | e^(2πi·2/3) | Mac | 283 | 8.4 |  |
+| 242 | ⟨3,-27,1⟩ | 1 | 1 | ω² | Mac | 283 | 8.4 |  |
 | 244 | ⟨5,-35,1⟩ | 1 | 2 | 1 | Mac | 320 | 5.3 |  |
 | 246 | ⟨1,-245,1⟩ | 9 | 18 | 1 | Modal | 8961 | 6.1 |  |
 | 247 | ⟨62,-124,1⟩ | 1 | 10 | 1 | Mac | 873 | 5.5 |  |
 | 248 | ⟨31,-37,1⟩ | 1 | 2 | 1 | Mac | 431 | 5.5 |  |
 | 250 | ⟨1,-249,1⟩ | 1 | 10 | 1 | Mac | 2496 | 10.1 |  |
 | 252 | ⟨1,-251,1⟩ | 1 | 16 | 1 | Modal | 41269 | 5.5 |  |
-| 254 | ⟨1,-253,1⟩ | 1 | 12 | e^(2πi·1/3) | Mac | 6687 | 7.1 |  |
+| 254 | ⟨1,-253,1⟩ | 1 | 12 | ω | Mac | 6687 | 7.1 |  |
 | 255 | ⟨1,-16,1⟩ | 3 | 2 | 1 | Mac | 331 | 4.8 | talk or survey |
 | 256 | ⟨1,-255,1⟩ | 1 | 12 | 1 | Modal | 3821 | 7.6 |  |
 | 257 | ⟨1,-256,1⟩ | 1 | 16 | 1 | Mac | 5797 | 19.6 |  |
 | 258 | ⟨1,-257,1⟩ | 1 | 16 | 1 | Modal | 23611 | 6.1 |  |
 | 259 | ⟨4,-9,1⟩ | 1 | 2 | 1 | Mac | 646 | 4.8 | paper |
-| 260 | ⟨29,-87,1⟩ | 1 | 6 | e^(2πi·2/3) | Mac | 2637 | 5.4 |  |
+| 260 | ⟨29,-87,1⟩ | 1 | 6 | ω² | Mac | 2637 | 5.4 |  |
 | 261 | ⟨1,-260,1⟩ | 1 | 40 | 1 | Modal | 60281 | 8.0 |  |
 | 262 | ⟨1,-261,1⟩ | 1 | 12 | 1 | Mac | 7310 | 6.7 |  |
-| 263 | ⟨66,-132,1⟩ | 1 | 8 | e^(2πi·1/3) | Mac | 480 | 5.6 |  |
+| 263 | ⟨66,-132,1⟩ | 1 | 8 | ω | Mac | 480 | 5.6 |  |
 | 264 | ⟨1,-263,1⟩ | 3 | 16 | 1 | Modal | 27481 | 8.7 |  |
 | 265 | ⟨1,-264,1⟩ | 1 | 16 | 1 | Mac | 2404 | 6.6 |  |
 | 266 | ⟨1,-265,1⟩ | 1 | 18 | 1 | Modal | 32328 | 6.6 |  |
 | 267 | ⟨67,-134,1⟩ | 1 | 8 | 1 | Mac | 747 | 5.3 |  |
 | 268 | ⟨1,-267,1⟩ | 1 | 16 | 1 | Modal | 44851 | 9.4 |  |
-| 269 | ⟨30,-90,1⟩ | 1 | 8 | e^(2πi·2/3) | Mac | 404 | 5.7 |  |
+| 269 | ⟨30,-90,1⟩ | 1 | 8 | ω² | Mac | 404 | 5.7 |  |
 | 270 | ⟨1,-269,1⟩ | 1 | 10 | 1 | Mac | 6476 | 7.4 |  |
 | 271 | ⟨17,-68,1⟩ | 1 | 4 | 1 | Mac | 375 | 5.5 |  |
-| 272 | ⟨1,-271,1⟩ | 1 | 12 | e^(2πi·1/3) | Mac | 4310 | 7.0 |  |
+| 272 | ⟨1,-271,1⟩ | 1 | 12 | ω | Mac | 4310 | 7.0 |  |
 | 273 | ⟨1,-272,1⟩ | 3 | 36 | 1 | Modal | 38268 | 10.2 |  |
 | 274 | ⟨11,-55,1⟩ | 1 | 3 | 1 | Mac | 405 | 11.2 |  |
-| 275 | ⟨13,-35,1⟩ | 1 | 2 | e^(2πi·1/3) | Mac | 368 | 5.3 |  |
+| 275 | ⟨13,-35,1⟩ | 1 | 2 | ω | Mac | 368 | 5.3 |  |
 | 276 | ⟨1,-275,1⟩ | 1 | 16 | 1 | Modal | 35129 | 9.0 |  |
 | 277 | ⟨1,-276,1⟩ | 1 | 12 | 1 | Mac | 2713 | 7.6 |  |
-| 278 | ⟨5,-19,1⟩ | 1 | 1 | e^(2πi·2/3) | Mac | 455 | 10.4 |  |
+| 278 | ⟨5,-19,1⟩ | 1 | 1 | ω² | Mac | 455 | 10.4 |  |
 | 279 | ⟨70,-140,1⟩ | 1 | 16 | 1 | Mac | 3529 | 7.5 |  |
 | 280 | ⟨1,-279,1⟩ | 1 | 10 | 1 | Modal | 15199 | 8.0 |  |
-| 281 | ⟨1,-280,1⟩ | 1 | 28 | e^(2πi·1/3) | Mac | 8274 | 8.2 |  |
+| 281 | ⟨1,-280,1⟩ | 1 | 28 | ω | Mac | 8274 | 8.2 |  |
 | 282 | ⟨1,-281,1⟩ | 3 | 14 | 1 | Mac | 9607 | 7.1 |  |
 | 283 | ⟨71,-142,1⟩ | 1 | 12 | 1 | Mac | 1358 | 6.8 |  |
-| 284 | ⟨1,-283,1⟩ | 1 | 12 | e^(2πi·1/3) | Mac | 9903 | 8.3 |  |
+| 284 | ⟨1,-283,1⟩ | 1 | 12 | ω | Mac | 9903 | 8.3 |  |
 | 285 | ⟨1,-284,1⟩ | 1 | 16 | 1 | Mac | 6388 | 7.3 |  |
 | 286 | ⟨1,-285,1⟩ | 1 | 14 | 1 | Modal | 28612 | 9.5 |  |
-| 287 | ⟨2,-24,1⟩ | 1 | 3 | e^(2πi·2/3) | Mac | 353 | 5.5 |  |
+| 287 | ⟨2,-24,1⟩ | 1 | 3 | ω² | Mac | 353 | 5.5 |  |
 | 288 | ⟨1,-17,1⟩ | 1 | 2 | 1 | Mac | 428 | 5.4 | talk or survey |
 | 289 | ⟨1,-288,1⟩ | 1 | 24 | 1 | Mac | 7238 | 7.9 |  |
-| 290 | ⟨1,-289,1⟩ | 1 | 12 | e^(2πi·1/3) | Mac | 10722 | 7.7 |  |
+| 290 | ⟨1,-289,1⟩ | 1 | 12 | ω | Mac | 10722 | 7.7 |  |
 | 291 | ⟨55,-74,1⟩ | 3 | 8 | 1 | Mac | 528 | 5.7 |  |
 | 292 | ⟨17,-19,1⟩ | 1 | 1 | 1 | Mac | 903 | 11.7 | paper |
 | 293 | ⟨6,-42,1⟩ | 1 | 4 | 1 | Mac | 454 | 6.2 |  |
 | 294 | ⟨1,-293,1⟩ | 1 | 20 | 1 | Modal + Mac | 6775 | 24.2 |  |
 | 295 | ⟨74,-148,1⟩ | 1 | 8 | 1 | Mac | 1226 | 6.6 |  |
-| 296 | ⟨33,-99,1⟩ | 1 | 10 | e^(2πi·2/3) | Mac | 2253 | 7.6 |  |
+| 296 | ⟨33,-99,1⟩ | 1 | 10 | ω² | Mac | 2253 | 7.6 |  |
 | 297 | ⟨37,-44,1⟩ | 1 | 2 | 1 | Mac | 539 | 5.6 |  |
 | 298 | ⟨1,-297,1⟩ | 1 | 12 | 1 | Mac | 7921 | 8.0 |  |
 | 299 | ⟨3,-30,1⟩ | 1 | 2 | 1 | Mac | 373 | 5.8 |  |
@@ -106,28 +106,19 @@ The 89 dimensions in 199..300 that were not already in this repo: `julia --proje
 
 The table gives the companion forms of the five standard-Zauner large-d files; [README](README.md#methods) describes the constructions and representative choices.
 
-*This large-d results section is mostly AI-generated by GPT-6; the 57966 parts by Claude Opus 5.5.*
-
 | d | standard-Zauner form | conductor q | class number h | U_Z eigenvalue |
 |---|---|---:|---:|---|
 | 2208 | ⟨1,−7,1⟩ | 3 | 1 | 1 |
 | 5779 | ⟨1,−3,1⟩ | 1 | 1 | 1 |
-| 15128 | ⟨1,−3,1⟩ | 1 | 1 | exp(4πi/3) |
+| 15128 | ⟨1,−3,1⟩ | 1 | 1 | ω² |
 | 39604 | ⟨1,−3,1⟩ | 1 | 1 | 1 |
 | 57966 | ⟨1,−5,1⟩ | 1 | 1 | 1 |
 
 The separate `fibonacci/fiducial_2208.txt` has F_f symmetry, whose 16th power is type F_a; the standard 2208 file has type F_z ([Grassl–Scott, Proposition III.5](https://arxiv.org/abs/1707.02944v2)).
 
-### Direct-ghost local checks
+### Direct-ghost check
 
-`stark_large.jl` builds the ghost at 2304 bits from the double-sine series, rounds it to 2048 bits and checks one residual. On macOS arm64 (Julia 1.13.3, one thread), against the earlier initial ghost plus Newton refinement:
-
-| d | old initial + Newton (s) | direct ghost (s) | old / direct RSS (GB) | direct residual | Newton steps, old / direct |
-|---:|---:|---:|---:|---|---:|
-| 2208 | 103.93 | 82.11 | 3.44 / 2.74 | 2^(-2040.54) | 70 / 0 |
-| 5779 | 797.19 | 253.22 | 5.31 / 2.99 | 2^(-2037.93) | 70 / 0 |
-
-The earlier and direct ghosts agree to 2032 bits (2208) and 2020 bits (5779). Both pipelines export identical units, labels and metadata at both dimensions, and their refinements reproduce the published files byte for byte.
+`stark_large.jl` builds the ghost directly from a double-sine series instead of an initial ghost plus Newton refinement. At d = 2208 and 5779 both routes export identical units, labels and metadata, and refine to the published files byte for byte.
 
 ### 39604 provenance
 
@@ -146,18 +137,16 @@ The earlier and direct ghosts agree to 2032 bits (2208) and 2020 bits (5779). Bo
 
 ### 57966 run
 
-`fiducials/fiducial_57966.txt` (SHA-256 `262ceae8ddfdf50a5e02c3d97916f62610e5ff042598926b3a8b61ddf52eb107`) was built once, with this repository's scripts, on the M2 Max (96 GiB, at most eight cores) at 2304 bits; the integer-relation guard needed 1378. It has not been rebuilt on a second platform; that rebuild is planned for January 2027.
+`fiducials/fiducial_57966.txt` (SHA-256 `262ceae8ddfdf50a5e02c3d97916f62610e5ff042598926b3a8b61ddf52eb107`) was built once, on the M2 Max (96 GiB, at most eight cores), with the scripts at `92f1477`, at 2304 bits; the integer-relation step needed 1378 bits. The Julia stages ran before `92f1477` existed, from the identical scripts of `1cd5a2f`. Since then only `reconstruct_large.py` has changed, by the behavior-preserving `bf4743e`. A second-platform rebuild is planned for January 2027.
 
-| stage | commit | dates (2026) | peak RSS (GiB) |
-|---|---|---|---:|
-| Group, ghost and units, eight threads | `d5dd7c3` | 5–8 Nov | 14.8 |
-| Normal bases, traces and conjugation | `d5dd7c3` | 8–9 Nov | 5.4 |
-| Reconstruction | `92f1477` | 9–10 Nov | 22.0 |
-| 640-bit refinement, eight workers, 16 steps | `92f1477` | 10–13 Nov | |
+| stage | dates (2026) | peak RSS (GiB) |
+|---|---|---:|
+| Group, ghost and units, eight threads (`--heap-size-hint=24G`) | 5–8 Nov | 14.8 |
+| Normal bases, traces and conjugation | 8–9 Nov | 5.4 |
+| Reconstruction | 9–10 Nov | 22.0 |
+| 640-bit refinement, eight workers, 16 steps | 10–13 Nov | not measured |
 
-The laptop was in daily use, so the run was paused at times and shared the machine with other jobs; the dates are not benchmarks. Units restarted once from their checkpoints with `--heap-size-hint=24G`. The first reconstruction, at `d5dd7c3`, was stopped after writing 32.5 TiB to the SSD through a writable memory map; PR #19 builds those maps in RAM, and at its commit `92f1477` Modal rebuilt both 2208 files and 5779 byte-identically (below). Refinement resumed from its step-7 checkpoint after a reboot, and four of its eight workers were suspended for a time; neither changes the arithmetic.
-
-`verify.py` passed in 279 s (maximum deviation 5.1e-19, U_Z residual 3.9e-17). `verify.py --precise` took 65,068 s on one thread; its bounds are in [saved-file verification](#saved-file-verification).
+The laptop was in daily use, so stages were paused, restarted from checkpoints and shared the machine; the dates are not benchmarks. `verify.py` passed in 279 s; `verify.py --precise` took 65,068 s on one thread ([bounds](#saved-file-verification)).
 
 ### Linux rebuild measurements
 
@@ -170,18 +159,18 @@ The laptop was in daily use, so the run was paused at times and shared the machi
 | `fiducials/fiducial_5779.txt` | 3,760.04 | 4,979.14 | `3f5ccd8751146214272e057ed47c97201e40a3e8f481d45ad0f4ffb6cd2ac48a` |
 | `fiducials/fiducial_15128.txt` | ≥ 25,895.52 | ≥ 34,932.63 | `66396d4c15e47bbac4c4d14328dcdfa7eb66586101bc839e542926a6694c66eb` |
 
-All four rebuilt files are byte-identical to the published ones. The 15128 run took three container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume. A stage that a container restart interrupted records only its final attempt, so its times are lower bounds. At `92f1477`, the reconstruction commit of the d = 57966 run, run `78b61429ab0845619584422f502cbef7` rebuilt both 2208 files and 5779 byte-identically before it was stopped for the cleanup. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume. Before the conjugation fix, at commit `d104d3e`, rebuilds of the standard 2208 file, 5779 and 15128 with one Julia BLAS thread (run IDs `b2bfa4f0494e436b9953a0da37bd8b9c`, `9ab6864805a44c4198af0947605c6df6`, `c436a21240614986872c45e986b3c736`) were also byte-identical.
+All four rebuilt files are byte-identical to the published ones. The 15128 run took three container attempts, each resuming from checkpoints on the `sic-large-rebuild` Volume. A stage that a container restart interrupted records only its final attempt, so its times are lower bounds. Run `78b61429ab0845619584422f502cbef7`, at `92f1477`, also rebuilt both 2208 files and 5779 byte-identically. The 64 GiB reservation is not a peak-RSS measurement; `/usr/bin/time -v` records peak RSS in the stage logs on the Volume.
 
 ### Saved-file verification
 
-A fresh offline `uv run verify.py` sweep of the 109 files merged in `b5da7a8` passed all of them in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
+A fresh offline `uv run verify.py` sweep of the 109 files at `b5da7a8`, before 57966, passed all of them in 99.16 s, including uv startup, using Python 3.13.17 with the pinned NumPy 2.5.4 and python-flint 0.9.0 dependencies.
 
-| published file | maximum deviation, precise upper bound | U_Z residual, precise upper bound | U_Z eigenvalue |
-|---|---:|---:|---|
-| `fiducials/fiducial_5779.txt` | 4.4e-153 | 9.1e-152 | ω⁰ |
-| `fiducials/fiducial_15128.txt` | 3.0e-152 | 6.6e-152 | ω² |
-| `fiducials/fiducial_39604.txt` | 2.3e-152 | 5.6e-152 | ω⁰ |
-| `fiducials/fiducial_57966.txt` | 1.4e-152 | 5.4e-152 | ω⁰ |
+| published file | maximum deviation, upper bound (rounded) | U_Z residual, upper bound (rounded) |
+|---|---:|---:|
+| `fiducials/fiducial_5779.txt` | 4.4e-153 | 9.1e-152 |
+| `fiducials/fiducial_15128.txt` | 3.0e-152 | 6.6e-152 |
+| `fiducials/fiducial_39604.txt` | 2.3e-152 | 5.6e-152 |
+| `fiducials/fiducial_57966.txt` | 1.4e-152 | 5.4e-152 |
 
 The 5779 and 15128 precise checks ran in one call on the M2 Max: 4,504 s wall time in total, while other jobs shared the machine. The 39604 and 57966 precise checks are in [39604 provenance](#39604-provenance) and [57966 run](#57966-run).
 
@@ -191,12 +180,10 @@ The 5779 and 15128 precise checks ran in one call on the M2 Max: 4,504 s wall ti
 - **5779:** a prior SIC is included in Appleby, Bengtsson, Grassl, Harrison and McConnell's [Stark-unit construction](https://arxiv.org/abs/2112.05552), with [5779 data posted by Grassl](http://s208785153.online.de/SICPOVM/5779/). This repository's result is numerical; orbit equivalence has not been checked.
 - **15128:** we found no prior SIC in the sources checked. [Bengtsson–McConnell, arXiv:2606.23535v1, §2](https://arxiv.org/html/2606.23535v1#S2), dated 22 June 2026, explicitly states that at d = 15128 “as yet no SIC has been found.” This dates the literature claim; it does not establish the absence of later or unpublished work.
 - **39604:** Bengtsson, Grassl and McConnell published a SIC in this dimension in [arXiv:2403.02872](https://arxiv.org/abs/2403.02872), so this is a replication. We found no posted fiducial: [Grassl's BGM table](http://s208785153.online.de/SICPOVM/) lists 39604 with empty Magma and numerical-data cells (checked 30 October 2026). This repository supplies the numerical file with the [prototype provenance and rebuild gap](#39604-provenance) above. Orbit equivalence to BGM's SIC has not been checked.
-- **57966:** we found no prior SIC in the sources checked on 15 November 2026. 57966 lies in the Q(√21) dimension tower (6, 24, 111, 528, 2526, 12099, 57966, …), not the n² + 3 family that the Stark-unit papers above treat. Grassl's tables stop at 39604, [BGM §9](https://arxiv.org/html/2403.02872v1#S9) calls 39604 the highest dimension reached, and Grassl's 2026 seminar abstract (below) still calls it the largest.
+- **57966:** we found no prior SIC in the sources checked on 15 November 2026. 57966 lies in the Q(√21) dimension tower (6, 24, 111, 528, 2526, 12099, 57966, …), not the n² + 3 family that the Stark-unit papers above treat. Grassl's tables stop at 39604; [BGM §9](https://arxiv.org/html/2403.02872v1#S9) lists partly unpublished constructions up to 45372 but not 57966; Grassl's 2026 seminar abstract (below) calls 39604 the largest.
 
 The literature check used these additional records:
 
 - [Grassl's SIC tables](http://s208785153.online.de/SICPOVM/), the frame target of [sicpovm.markus-grassl.de](http://sicpovm.markus-grassl.de/), are reachable over plain HTTP. The checked tables list 5779 with linked data and have no 2208 or 15128 entry.
 - Grassl's [UiO seminar abstract for 17 September 2026](https://www.mn.uio.no/math/english/research/projects/qombine/events/seminars/2026-09-17-grassl.html) reports Stark-unit SICs “in some four- and five-digit dimensions, the largest being 39604”. It does not enumerate those dimensions, so this statement alone does not resolve the status of 15128.
-- [Bengtsson–Grassl–McConnell, arXiv:2403.02872v1, §9](https://arxiv.org/html/2403.02872v1#S9) reports partially unpublished higher-dimensional constructions (its list ends at 45372). This is another limit on what a search of posted fiducials can establish.
 
-These sources support a report of what we found in the literature, not a claim of novelty. Unpublished work and unindexed data remain outside the search.

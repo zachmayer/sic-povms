@@ -13,7 +13,7 @@ There are 110 files in 109 dimensions: 109 standard-Zauner fiducials in `fiducia
 
 This repo supplies explicit fiducials. Radchenko and Wheeler's [*Real quadratic fields and finite quantum dilogarithms I*](https://arxiv.org/abs/2609.21892) and [*Stark units for real quadratic fields and reciprocity laws*](https://www.danrad.net/papers/stark-reciprocity.pdf) claim the results needed for Zauner's conjecture in general; we have not checked them.
 
-*Mostly AI-generated: Gemini 4 Argon first found the algebraic SICs; Claude Opus 5.5 found d = 198, ran the sweep to 300, and wrote `stark.jl` (from Argon's), `search.py`, `refine.py` and this README; GPT-6 Astra found both d = 2208 SICs; GPT-6 wrote the FFT verifier and the large-d pipeline, found d = 5779 and 15128, and fixed the conjugation precision that d = 39604 needed; Claude Opus 5.5 ran d = 57966.*
+*Mostly AI-generated: Gemini 4 Argon found the first algebraic SICs; Claude Opus 5.5 found d = 198, swept to 300, ran d = 57966, and wrote the small-d scripts and this README; GPT-6 Astra found both 2208 SICs; GPT-6 found 5779 and 15128 and wrote the FFT verifier and large-d pipeline.*
 
 ## Checking the files
 
@@ -53,10 +53,6 @@ uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
 
 For the large-d companion-form construction:
 
-On macOS, `tmutil addexclusion <work dir>` keeps the tensors out of Time Machine backups. Local snapshots still pin each deleted tensor predecessor (about 48 GB at d = 57966) until macOS purges them; if the disk fills, the run stops at a checked write, and `sudo tmutil deletelocalsnapshots /` frees the space before resuming.
-
-Construction holds a kernel lock on its work directory, released when the process exits. Ctrl-C during a threaded stage may not exit promptly; `kill -9` is safe to resume from.
-
 ```sh
 d=5779
 work="${LARGE_D_WORK:-large_d_work/d$d}"
@@ -66,7 +62,9 @@ uv run reconstruct_large.py "$work/export" --work "$work/reconstruction" --outpu
 uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
-`LARGE_D_WORK=<dir>` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard requests more, append the bit count after the phase in both commands and use a fresh work directory. Unit rows and tensor slices use up to eight Julia threads in separate processes. Tensor values live in fixed-size file records; each trace axis commits before its predecessor is deleted. Refinement puts its checkpoints, shards and `.jsonl` log under `refine_<input-stem>/` there; `--work <dir>` overrides that refinement directory. Each stage checks its own source and inputs. Python-only changes preserve Julia's construction checkpoints. A Julia source, platform or precision mismatch needs a fresh `LARGE_D_WORK`; for a reconstruction or refinement mismatch, move that subdirectory aside or pass `refine_large.py` a fresh `--work`. Otherwise rerun the same commands to resume.
+`LARGE_D_WORK` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard asks for more, append the bit count after the phase in both Julia commands and use a fresh work directory. Rerun the same commands to resume; `kill -9` is safe. Each stage checks its source and inputs: a Julia source, platform or precision change needs a fresh `LARGE_D_WORK`, and a reconstruction or refinement change needs that stage's subdirectory moved aside (or `refine_large.py --work <fresh dir>`).
+
+On macOS, `tmutil addexclusion <work dir>` keeps tensors out of Time Machine, but local snapshots can still hold deleted tensors (about 48 GB each at d = 57966). If the disk fills, the run stops cleanly; `sudo tmutil deletelocalsnapshots /` frees the space.
 
 For the published Fibonacci file:
 
@@ -85,7 +83,7 @@ modal run --detach modal_rebuild.py
 modal run --detach modal_rebuild.py --files fiducials/fiducial_5779.txt
 ```
 
-The local test covers small odd/even dimensions, precise verification, recovery from a real numerical checkpoint, byte comparisons, negative controls and the conjugation-precision regression (`test_conjugation.jl`). The Modal runner defaults to the four earlier large files, comparing SHA-256 in isolated copies. Its header explains how to retrieve logs and results.
+The local test covers small odd/even dimensions, precise verification, recovery from a real numerical checkpoint, byte comparisons, negative controls and the conjugation-precision regression (`test_conjugation.jl`). The Modal runner defaults to both 2208 files, 5779 and 15128, comparing SHA-256 in isolated copies. Its header explains how to retrieve logs and results.
 
 After rebuilding, require `git diff --exit-code fiducials/ fibonacci/`.
 
