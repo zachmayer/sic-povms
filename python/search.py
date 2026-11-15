@@ -17,8 +17,8 @@ The search stops at its first SIC and writes it to fiducial_<d>_seed<seed>_trial
 double precision, in the file layout and conventions of Scott and Grassl (arXiv:0910.5784);
 refine.py takes it to 150 digits.
 
-  uv run search.py 19                 # a SIC in d = 19 in under a second
-  uv run search.py 198 --minutes 60   # what one core of the cloud search did
+  uv run python/search.py 19                 # a SIC in d = 19 in under a second
+  uv run python/search.py 198 --minutes 60   # what one core of the cloud search did
 """
 
 import argparse

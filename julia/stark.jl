@@ -20,7 +20,7 @@
 # STARK_CHECKPOINTS=<dir>, each Gauss–Newton step and result and each set of conjugated units is saved there, and a
 # rerun (after a preemption or a time cap) resumes from them instead of recomputing; the output is the same.
 #
-#   julia --project=. stark.jl 197 203 207
+#   julia --project=julia julia/stark.jl 197 203 207
 
 using Zauner, LinearAlgebra, Printf
 using Nemo: randseed!

@@ -31,13 +31,13 @@ jobs:
           annotations: true
       - uses: astral-sh/setup-uv@v10.3.3
       # fiducial_39604.txt and fiducial_57966.txt take minutes even in default mode; the weekly job checks them.
-      - run: uv run verify.py $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v -e fiducial_39604.txt -e fiducial_57966.txt)
-      - run: uv run verify.py fiducials/fiducial_197.txt fiducials/fiducial_198.txt --precise
+      - run: uv run python/verify.py $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v -e fiducial_39604.txt -e fiducial_57966.txt)
+      - run: uv run python/verify.py fiducials/fiducial_197.txt fiducials/fiducial_198.txt --precise
       - name: a file in the wrong folder fails
         run: |
           mkdir -p "$RUNNER_TEMP/fibonacci"
           cp fiducials/fiducial_197.txt "$RUNNER_TEMP/fibonacci/"
-          ! uv run verify.py "$RUNNER_TEMP/fibonacci/fiducial_197.txt"
+          ! uv run python/verify.py "$RUNNER_TEMP/fibonacci/fiducial_197.txt"
       # Dependabot's merge waits on this job, so on its PRs this job verifies the
       # lockfile too: the Verify lockfile workflow is not a required check. Only on
       # its PRs, so a bad release of the unpinned extension (that workflow says why)
@@ -57,9 +57,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v10.3.3
-      - run: uv run verify.py fiducials/fiducial_39604.txt fiducials/fiducial_57966.txt
+      - run: uv run python/verify.py fiducials/fiducial_39604.txt fiducials/fiducial_57966.txt
       # --precise takes about 12 hours on fiducial_39604.txt and 18 on fiducial_57966.txt, past the 6-hour job limit; they are run by hand (RESULTS.md).
-      - run: uv run verify.py --precise $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v -e fiducial_39604.txt -e fiducial_57966.txt)
+      - run: uv run python/verify.py --precise $(ls fiducials/fiducial_*.txt fibonacci/fiducial_*.txt | grep -v -e fiducial_39604.txt -e fiducial_57966.txt)
 
   # Dependabot's PRs merge themselves. This job checks nothing out, so the PR's
   # code never runs with this write token, and --match-head-commit refuses a

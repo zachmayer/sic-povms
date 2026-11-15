@@ -4,8 +4,8 @@
 # ///
 """Rebuild the large published files in isolated Linux copies on Modal (by default the four below; 39604 and 57966 are README to-dos).
 
-modal run --detach modal_rebuild.py
-modal run --detach modal_rebuild.py --files fiducials/fiducial_5779.txt
+modal run --detach python/modal_rebuild.py
+modal run --detach python/modal_rebuild.py --files fiducials/fiducial_5779.txt
 modal volume get sic-large-rebuild /RUN_ID ./modal_results
 
 Upload the local source without saved seeds or checkpoints. Compare each result
@@ -29,7 +29,7 @@ import uuid
 import modal
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_FILES = (
     "fiducials/fiducial_2208.txt",
     "fibonacci/fiducial_2208.txt",
@@ -51,18 +51,18 @@ def commands_for(filename: str, workers: int = 8) -> list[list[str]]:
     if folder == "fibonacci":
         if dimension != "2208":
             raise ValueError("Only the published Fibonacci construction is supported")
-        construction = [["uv", "run", "fibonacci_2208.py", "--fetch-input"]]
+        construction = [["uv", "run", "python/fibonacci_2208.py", "--fetch-input"]]
         seed = f"fiducial_{dimension}_fibonacci_seed.txt"
     else:
         work = f"large_d_work/d{dimension}"
-        julia = ["env", f"LARGE_D_WORK={work}", "julia", "--project=.", "--gcthreads=1",
+        julia = ["env", f"LARGE_D_WORK={work}", "julia", "--project=julia", "--gcthreads=1",
                  "--heap-size-hint=4G"]
         seed = f"fiducial_{dimension}_stark.txt"
-        construction = [[*julia, f"--threads={workers}", "stark_large.jl", dimension, "units"],
-                        [*julia, f"--threads={workers}", "stark_large.jl", dimension, "tensors"],
-                        ["uv", "run", "reconstruct_large.py", f"{work}/export",
+        construction = [[*julia, f"--threads={workers}", "julia/stark_large.jl", dimension, "units"],
+                        [*julia, f"--threads={workers}", "julia/stark_large.jl", dimension, "tensors"],
+                        ["uv", "run", "python/reconstruct_large.py", f"{work}/export",
                          "--work", f"{work}/reconstruction", "--output", seed]]
-    return [*construction, ["uv", "run", "refine_large.py", seed, "--output", filename,
+    return [*construction, ["uv", "run", "python/refine_large.py", seed, "--output", filename,
                            "--workers", str(workers)]]
 
 
@@ -72,9 +72,9 @@ def sha256(path: Path) -> str:
 
 def source_fingerprint(repo: Path) -> str:
     digest = hashlib.sha256()
-    for path in sorted(repo.iterdir()):
+    for path in sorted([*(repo / "python").iterdir(), *(repo / "julia").iterdir()]):
         if path.suffix in (".py", ".jl", ".toml"):
-            digest.update(path.name.encode("ascii") + b"\0" + path.read_bytes())
+            digest.update(path.relative_to(repo).as_posix().encode("ascii") + b"\0" + path.read_bytes())
     return digest.hexdigest()
 
 
@@ -173,7 +173,7 @@ image = (
     .run_commands(f"curl -fsSL {JULIA_URL} | tar -xz -C /opt && ln -s /opt/julia-1.13.2/bin/julia /usr/local/bin/julia")
     .run_commands("curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh")
     .add_local_dir(ROOT, "/source", copy=True, ignore=list(COPY_IGNORE))
-    .run_commands("cd /source && julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'")
+    .run_commands("cd /source && julia --project=julia -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'")
 )
 app = modal.App("sic-large-rebuild", image=image)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)

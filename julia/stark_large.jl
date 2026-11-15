@@ -1,6 +1,6 @@
 # Export a companion-form SIC orbit by the Stark-unit method of stark.jl.
-# Run: julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=4G stark_large.jl DIMENSION units [BITS=2048]
-# Then: julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=4G stark_large.jl DIMENSION tensors [BITS=2048]
+# Run: julia --project=julia --threads=8 --gcthreads=1 --heap-size-hint=4G julia/stark_large.jl DIMENSION units [BITS=2048]
+# Then: julia --project=julia --threads=8 --gcthreads=1 --heap-size-hint=4G julia/stark_large.jl DIMENSION tensors [BITS=2048]
 # Then run reconstruct_large.py as in README, after Julia exits and releases its heap.
 #
 # To keep large d tractable, factor the cocycle along the label orbit, evaluate

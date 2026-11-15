@@ -27,8 +27,8 @@ Precise transforms use Bluestein convolution with cached chirps and power-of-two
 FLINT FFTs, so composite and prime dimensions follow the same algorithm.
 This independent judge imports no other repository scripts.
 
-uv run verify.py [FILE ...]            # NumPy double precision; threshold 1e-12
-uv run verify.py [FILE ...] --precise  # FLINT 640-bit balls; threshold 1e-147
+uv run python/verify.py [FILE ...]     # NumPy double precision; threshold 1e-12
+uv run python/verify.py [FILE ...] --precise  # FLINT 640-bit balls; threshold 1e-147
 In --precise, max deviation (including norm) and symmetry residual are rigorous
 upper bounds for the decimal input; PASS requires both bounds below threshold.
 The printed bounds are rounded to two significant digits, as in default mode.
@@ -117,7 +117,7 @@ def main():
     files = [Path(arg) for arg in sys.argv[1:] if arg != "--precise"]
     if not files:
         files = [p for folder in ("fiducials", "fibonacci")
-                 for p in sorted((Path(__file__).parent / folder).glob("fiducial_*.txt"))
+                 for p in sorted((Path(__file__).parent.parent / folder).glob("fiducial_*.txt"))
                  if re.fullmatch(r"fiducial_\d+\.txt", p.name)]
     failed = False
     for path in files:

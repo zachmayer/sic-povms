@@ -13,8 +13,8 @@ precision, so each step gains about 15 digits. Only the input's double-precision
 result is written as fiducials/fiducial_<d>.txt in Scott and Grassl's layout, with unit norm and a real positive
 first component.
 
-  uv run refine.py fiducial_197_stark.txt     # rewrites fiducials/fiducial_197.txt
-  uv run refine.py fiducials/fiducial_198.txt # re-derives its 150 digits from the first 16
+  uv run python/refine.py fiducial_197_stark.txt     # rewrites fiducials/fiducial_197.txt
+  uv run python/refine.py fiducials/fiducial_198.txt # re-derives its 150 digits from the first 16
 """
 
 import argparse
