@@ -4,7 +4,7 @@
 # ///
 """Offline small-d acceptance, without any cloud calls (at most two cores).
 
-uv run test_large.py --work /absolute/path/outside/repo
+uv run python/test_large.py --work /absolute/path/outside/repo
 
 Requires Julia on PATH and the repository's Julia/Python packages installed.
 Runs fresh d=19 (odd, q=1) and d=48 (even, q=3), compares one/two-thread construction,
@@ -28,7 +28,7 @@ import time
 from modal_rebuild import COPY_IGNORE, commands_for, rebuild_file, run_command
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def checked(command: list[str], cwd: Path, environment: dict[str, str], log: Path) -> None:
@@ -41,7 +41,7 @@ def resume_refinement(fixture: Path, work: Path, environment: dict[str, str]) ->
     work.mkdir()
     output = work / "fiducial_48.txt"
     checkpoint = work / "state"
-    command = ["uv", "run", "refine_large.py", "fiducial_48_stark.txt", "--output", str(output),
+    command = ["uv", "run", "python/refine_large.py", "fiducial_48_stark.txt", "--output", str(output),
                "--work", str(checkpoint), "--workers", "2", "--checkpoint-rows", "1"]
     with (work / "interrupted.log").open("wb") as log:
         child = subprocess.Popen(command, cwd=fixture, env=environment, stdout=log,
@@ -88,14 +88,14 @@ def main() -> None:
                        JULIA_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", MKL_NUM_THREADS="1")
     fixture = work / "fixture"
     shutil.copytree(ROOT, fixture, ignore=shutil.ignore_patterns(*COPY_IGNORE))
-    checked(["julia", "--project=.", "--threads=2", "--gcthreads=1", "--heap-size-hint=4G", "test_conjugation.jl"],
+    checked(["julia", "--project=julia", "--threads=2", "--gcthreads=1", "--heap-size-hint=4G", "julia/test_conjugation.jl"],
             fixture, environment, work / "conjugation.log")
     results = {}
     for d in (19, 48):
         filename = f"fiducials/fiducial_{d}.txt"
         for index, command in enumerate(commands_for(filename, workers=1)):
             checked(command, fixture, environment, work / f"d{d}_baseline_{index}.log")
-        checked(["uv", "run", "verify.py", filename, "--precise"], fixture,
+        checked(["uv", "run", "python/verify.py", filename, "--precise"], fixture,
                 environment, work / f"d{d}_precise.log")
         expected = hashlib.sha256((fixture / filename).read_bytes()).hexdigest()
         destination = work / f"rebuild_{d}"

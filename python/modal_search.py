@@ -1,6 +1,6 @@
 """Run independent single-core SIC searches in Modal containers.
 
-uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
+uvx modal run python/modal_search.py --d 198 --containers 25 --minutes 60
 
 Each search stops at its first SIC; the entrypoint saves its seed locally.
 """

@@ -15,7 +15,7 @@ using a saved vector. refine_large.py supplies the 150 digits.
 
 The checked 48g input comes from https://arxiv.org/src/1707.02944v2.
 Alignment: https://arxiv.org/abs/1905.09737, Eqs. 15--16; antiunitary:
-1707.02944, Eqs. 24--25. Run: uv run fibonacci_2208.py --fetch-input
+1707.02944, Eqs. 24--25. Run: uv run python/fibonacci_2208.py --fetch-input
 """
 
 import argparse

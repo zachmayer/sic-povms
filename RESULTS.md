@@ -163,7 +163,7 @@ All four rebuilt files are byte-identical to the published ones. The 15128 run t
 
 ### Saved-file verification
 
-`uv run verify.py` passes all 110 files. Precise bounds for the largest files:
+`uv run python/verify.py` passes all 110 files. Precise bounds for the largest files:
 
 | published file | maximum deviation, upper bound (rounded) | U_Z residual, upper bound (rounded) |
 |---|---:|---:|

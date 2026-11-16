@@ -11,7 +11,6 @@ We found no prior published SIC in the other 95 dimensions. Unpublished work and
 
 There are 110 files in 109 dimensions: 109 standard-Zauner fiducials in `fiducials/` and one Fibonacci antiunitary fiducial in `fibonacci/`. These are numerical solutions, written to 150 digits in [Scott–Grassl's format](https://arxiv.org/abs/0910.5784), with unit norm and ψ_0 real and positive; a real or imaginary part below 1e-180 is written as 0. Each standard file is an eigenvector of Scott–Grassl's U_Z; [RESULTS.md](RESULTS.md) gives the eigenvalue.
 
-
 *Mostly AI-generated: Gemini 4 Argon found the first algebraic SICs; Claude Opus 5.5 found d = 198, swept to 300, ran d = 57966, and wrote the small-d scripts and this README; GPT-6 Astra found both 2208 SICs; GPT-6 found 5779 and 15128 and wrote the FFT verifier and large-d pipeline.*
 
 ## Checking the files
@@ -19,8 +18,8 @@ There are 110 files in 109 dimensions: 109 standard-Zauner fiducials in `fiducia
 `verify.py` shares no code with the construction scripts. It checks all d² overlaps, norm, gauge and the stated symmetry, using O(d) working memory. Its header gives the equations and conventions, including the Fibonacci symmetry of [Grassl–Scott](https://arxiv.org/abs/1707.02944v2), Eqs. 24–25.
 
 ```sh
-uv run verify.py             # all published files; NumPy, threshold 1e-12
-uv run verify.py --precise   # FLINT 640-bit balls, threshold 1e-147
+uv run python/verify.py             # all published files; NumPy, threshold 1e-12
+uv run python/verify.py --precise   # FLINT 640-bit balls, threshold 1e-147
 ```
 
 The precise mode bounds errors in the saved decimal coordinates; these remain numerical checks. On one thread of an M2 Max, d = 57966 takes about 5 minutes in default mode and 18 hours in precise mode. [RESULTS.md](RESULTS.md) records the bounds and construction measurements.
@@ -31,21 +30,21 @@ The precise mode bounds errors in the saved decimal coordinates; these remain nu
 
 **The other 103 in 197..300:** `stark.jl` implements the algebraic method of [Appleby, Flammia and Kopp](https://arxiv.org/abs/2501.03970), using Flammia's [Zauner.jl](https://github.com/sflammia/Zauner.jl), pinned by commit. Its comments explain the replacements for costly library steps and its canonical representative rule. `refine.py` takes the resulting seed to the published precision.
 
-**Large dimensions:** `stark_large.jl` builds the companion-form cocycle ghost directly at full precision from a double-sine series, then streams units and traces. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. Pin rationale is in `representatives.toml`; the Julia header states the unpinned rule tested by `test_large.py`. The 39604 file comes from the prototype these scripts were ported from; its rebuild with them is deferred ([provenance](RESULTS.md#39604-provenance)).
+**Large dimensions:** `stark_large.jl` builds the companion-form cocycle ghost directly at full precision from a double-sine series, then streams units and traces. `reconstruct_large.py` completes a partial projector with FFT rows; `refine_large.py` refines it in full space. Their headers explain the departures needed to avoid the smaller scripts' dense matrices. Pin rationale is in `representatives.toml`; the Julia header states the unpinned rule tested by `test_large.py`.
 
 **Fibonacci 2208:** `fibonacci_2208.py` searches the antiunitary fixed space subject to alignment constraints, with its prototype's ambient random seed fixed in the script. It uses the same large-d refiner.
 
 ## Reproducing
 
-Install Julia 1.13.2 and uv, then run from this directory:
+Python scripts are in `python/` and Julia scripts in `julia/`. Install Julia 1.13.2 and uv, then run from the repo root:
 
 ```sh
-julia --project=. -e 'using Pkg; Pkg.instantiate()'   # once
-julia --project=. stark.jl 197
-uv run refine.py fiducial_197_stark.txt
-uv run refine.py fiducials/fiducial_198.txt           # re-derive from double precision
-uv run search.py 19
-uvx modal run modal_search.py --d 198 --containers 25 --minutes 60
+julia --project=julia -e 'using Pkg; Pkg.instantiate()'   # once
+julia --project=julia julia/stark.jl 197
+uv run python/refine.py fiducial_197_stark.txt
+uv run python/refine.py fiducials/fiducial_198.txt    # re-derive from double precision
+uv run python/search.py 19
+uvx modal run python/modal_search.py --d 198 --containers 25 --minutes 60
 ```
 
 For the large-d companion-form construction:
@@ -53,10 +52,10 @@ For the large-d companion-form construction:
 ```sh
 d=5779
 work="${LARGE_D_WORK:-large_d_work/d$d}"
-LARGE_D_WORK="$work" julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=4G stark_large.jl "$d" units
-LARGE_D_WORK="$work" julia --project=. --threads=8 --gcthreads=1 --heap-size-hint=4G stark_large.jl "$d" tensors
-uv run reconstruct_large.py "$work/export" --work "$work/reconstruction" --output "fiducial_${d}_stark.txt"
-uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
+LARGE_D_WORK="$work" julia --project=julia --threads=8 --gcthreads=1 --heap-size-hint=4G julia/stark_large.jl "$d" units
+LARGE_D_WORK="$work" julia --project=julia --threads=8 --gcthreads=1 --heap-size-hint=4G julia/stark_large.jl "$d" tensors
+uv run python/reconstruct_large.py "$work/export" --work "$work/reconstruction" --output "fiducial_${d}_stark.txt"
+uv run python/refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${d}.txt" --workers 8
 ```
 
 `LARGE_D_WORK` selects the work directory (default `large_d_work/d<d>`). Construction uses 2048 bits; if the integer-relation guard asks for more, append the bit count after the phase in both Julia commands and use a fresh work directory. Rerun the same commands to resume.
@@ -64,8 +63,8 @@ uv run refine_large.py "fiducial_${d}_stark.txt" --output "fiducials/fiducial_${
 For the published Fibonacci file:
 
 ```sh
-uv run fibonacci_2208.py --fetch-input
-uv run refine_large.py fiducial_2208_fibonacci_seed.txt --output fibonacci/fiducial_2208.txt
+uv run python/fibonacci_2208.py --fetch-input
+uv run python/refine_large.py fiducial_2208_fibonacci_seed.txt --output fibonacci/fiducial_2208.txt
 ```
 
 The [48g source supplement](https://arxiv.org/src/1707.02944v2) is fetched separately. The script extracts only `sicfiducial.48.g.150.txt` and checks its SHA-256. This gitignored external input is not covered by the repo's CC0 license. With a local tarball, replace `--fetch-input` by `--source-archive /path/to/src.tar`; with the checked input present, omit both flags.
@@ -73,9 +72,9 @@ The [48g source supplement](https://arxiv.org/src/1707.02944v2) is fetched separ
 Local acceptance and fresh Linux rebuilds:
 
 ```sh
-uv run test_large.py --work /absolute/path/outside/repo
-modal run --detach modal_rebuild.py
-modal run --detach modal_rebuild.py --files fiducials/fiducial_5779.txt
+uv run python/test_large.py --work /absolute/path/outside/repo
+modal run --detach python/modal_rebuild.py
+modal run --detach python/modal_rebuild.py --files fiducials/fiducial_5779.txt
 ```
 
 The local test covers small odd/even dimensions, precise verification, recovery from a real numerical checkpoint, byte comparisons, negative controls and the conjugation-precision regression (`test_conjugation.jl`). The Modal runner defaults to both 2208 files, 5779 and 15128, comparing SHA-256 in isolated copies. Its header explains how to retrieve logs and results.
